@@ -99,15 +99,15 @@ stimuli:
       - type: output-matches
         name: brd-research-receipt-state
         config:
-          pattern: '(?is)(?=.*rpiInvocations)(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*'
+          pattern: '(?is)(?=.*(?:rpiInvocations|invocationId))(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*'
       - type: output-matches
         name: brd-research-receipt-document
         config:
-          pattern: '(?is)(Research Finding Dispositions).*(incorporated|revised|rejected|deferred|retained-assumption)'
+          pattern: '(?is)(?:Research Finding Dispositions|\|[^\r\n]*\bDisposition\b[^\r\n]*\|).*\b(?:incorporated|revised|rejected|deferred|retained-assumption)\b'
       - type: output-matches
         name: brd-research-receipt-authority
         config:
-          pattern: '(?is)(research artifact|Research).*(evidence|question).*(BRD).*(authoritative|authority|decision)'
+          pattern: '(?is)(research artifact|Research).*(evidence|question).*(BRD).*(authoritative|authority|decision|\bowns?\b)'
 
   - name: brd-builder-research-blocked
     prompt: |

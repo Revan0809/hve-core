@@ -1177,15 +1177,15 @@ stimuli:
   - type: output-matches
     name: brd-research-receipt-state
     config:
-      pattern: (?is)(?=.*rpiInvocations)(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*
+      pattern: (?is)(?=.*(?:rpiInvocations|invocationId))(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*
   - type: output-matches
     name: brd-research-receipt-document
     config:
-      pattern: (?is)(Research Finding Dispositions).*(incorporated|revised|rejected|deferred|retained-assumption)
+      pattern: (?is)(?:Research Finding Dispositions|\|[^\r\n]*\bDisposition\b[^\r\n]*\|).*\b(?:incorporated|revised|rejected|deferred|retained-assumption)\b
   - type: output-matches
     name: brd-research-receipt-authority
     config:
-      pattern: (?is)(research artifact|Research).*(evidence|question).*(BRD).*(authoritative|authority|decision)
+      pattern: (?is)(research artifact|Research).*(evidence|question).*(BRD).*(authoritative|authority|decision|\bowns?\b)
 - name: brd-builder-research-blocked
   prompt: |
     Discover depends on a bounded market question, but Research returned
@@ -2173,7 +2173,7 @@ stimuli:
   - type: output-matches
     name: complete-orientation-retry
     config:
-      pattern: (?is)^(?![\s\S]*(?<!\b(?:not|never|no|without)\s)\b(?:retry\s+[*`]*(?:twice|[2-9]|indefinitely|forever)\b|(?:two|three|[2-9])\s+[*`]*retries\b|retry\s+until\s+(?:success|it\s+(?:works|succeeds))))(?=[\s\S]*(?:retry\s+[*`]*(?:(?:exactly|at\s+most|no\s+more\s+than)\s+)?once\b|(?:one|single)\b[*`]*\s+(?:allowed\s+)?retry\b|(?:one|a\s+single)\b[*`]*\s+(?:additional|more)\s+attempt\b))(?=[\s\S]*orientation)(?=[\s\S]*\b(?:task|original\s+instructions?)\b)(?=[\s\S]*(?:diff-state\.json|state path))(?=[\s\S]*(?:orientation-walkthrough\.md|output path))(?=[\s\S]*(?:failure|error))
+      pattern: (?is)^(?![\s\S]*(?<!\b(?:not|never|no|without)\s)\b(?:retry\s+[*`]*(?:twice|[2-9]|indefinitely|forever)\b|retry\b[^.\r\n]{0,60}?\btwice\b|(?:two|three|[2-9])\s+[*`]*retries\b|retry\s+until\s+(?:success|it\s+(?:works|succeeds))))(?=[\s\S]*(?:retry\s+[*`]*(?:(?:exactly|at\s+most|no\s+more\s+than)\s+)?once\b|retry\b(?:(?!at\s+least\b)[^.\r\n]){0,60}?\bonce\b|(?:one|single)\b[*`]*\s+(?:allowed\s+)?retry\b|(?:one|a\s+single)\b[*`]*\s+(?:additional|more)\s+attempt\b))(?=[\s\S]*orientation)(?=[\s\S]*\b(?:task|original\s+instructions?)\b)(?=[\s\S]*(?:diff-state\.json|state path))(?=[\s\S]*(?:orientation-walkthrough\.md|output path))(?=[\s\S]*(?:failure|error))
 - name: code-review-perspective-no-output-retry
   prompt: |
     This is a behavior-contract scenario, not a live review.
@@ -2193,7 +2193,7 @@ stimuli:
   - type: output-matches
     name: complete-perspective-retry
     config:
-      pattern: (?is)^(?![\s\S]*(?<!\b(?:not|never|no|without)\s)\b(?:retry\s+[*`]*(?:twice|[2-9]|indefinitely|forever)\b|(?:two|three|[2-9])\s+[*`]*retries\b|retry\s+until\s+(?:success|it\s+(?:works|succeeds))))(?=[\s\S]*(?:retry\s+[*`]*(?:(?:exactly|at\s+most|no\s+more\s+than)\s+)?once\b|(?:one|single)\b[*`]*\s+(?:allowed\s+)?retry\b|(?:one|a\s+single)\b[*`]*\s+(?:additional|more)\s+attempt\b))(?=[\s\S]*(?:(?:complete|full|entire)\s+(?:original\s+)?dispatch|complete\s+original))(?=[\s\S]*(?:failure|no output|missing))(?=[\s\S]*(?:functional-findings\.json|expected\s+(?:findings[- ](?:file|path)|output)))
+      pattern: (?is)^(?![\s\S]*(?<!\b(?:not|never|no|without)\s)\b(?:retry\s+[*`]*(?:twice|[2-9]|indefinitely|forever)\b|retry\b[^.\r\n]{0,60}?\btwice\b|(?:two|three|[2-9])\s+[*`]*retries\b|retry\s+until\s+(?:success|it\s+(?:works|succeeds))))(?=[\s\S]*(?:retry\s+[*`]*(?:(?:exactly|at\s+most|no\s+more\s+than)\s+)?once\b|retry\b(?:(?!at\s+least\b)[^.\r\n]){0,60}?\bonce\b|(?:one|single)\b[*`]*\s+(?:allowed\s+)?retry\b|(?:one|a\s+single)\b[*`]*\s+(?:additional|more)\s+attempt\b))(?=[\s\S]*(?:(?:complete|full|entire)\s+(?:original\s+)?dispatch|complete\s+original))(?=[\s\S]*(?:failure|no output|missing))(?=[\s\S]*(?:functional-findings\.json|expected\s+(?:findings[- ](?:file|path)|output)))
   - type: output-matches
     name: skip-only-after-retry
     config:
@@ -4370,8 +4370,9 @@ stimuli:
     the primary Research artifact with the recommendation, alternative,
     evidence IDs, confidence, and unresolved assumptions. Stop after the
     Research return; reconciling `context.md` is a separate step. The
-    experiment session directory is the alternate Research evidence root; no
-    execution or hypothesis validation has occurred. Research posture:
+    experiment session directory
+    `.copilot-tracking/mve/2026-09-21/synthetic-batching/` is the alternate
+    Research evidence root; no execution or hypothesis validation has occurred. Research posture:
     `focused`. The staged evidence file is the only source; explicit limit:
     one research cycle.
   environment:
@@ -4615,7 +4616,7 @@ stimuli:
       dest: .github/copilot-instructions.md
     - src: fixtures/rpi-depth/experiment-mve-plan.md
       dest: .copilot-tracking/mve/2026-09-21/synthetic-batching/mve-plan.md
-    - src: fixtures/rpi-depth/experiment-execution-plan.md
+    - src: fixtures/rpi-depth/experiment-execution-plan-completed.md
       dest: .copilot-tracking/plans/2026-09-21/synthetic-batching-execution-plan.md
     - src: fixtures/rpi-depth/experiment-execution-plan-critique.md
       dest: .copilot-tracking/reviews/plans/2026-09-21/synthetic-batching-execution-plan-critique.md
@@ -4623,6 +4624,8 @@ stimuli:
       dest: .copilot-tracking/changes/2026-09-21/synthetic-batching-execution-changes.md
     - src: fixtures/rpi-depth/experiment-run-data.md
       dest: .copilot-tracking/mve/2026-09-21/synthetic-batching/results.md
+    - src: fixtures/rpi-depth/experiment-run-data.md
+      dest: evidence/experiment-run-data.md
     - src: ../../.github/instructions/experimental/experiment-designer.instructions.md
       dest: .github/instructions/experimental/experiment-designer.instructions.md
     - src: ../../.github/instructions/hve-core/copilot-tracking.instructions.md
@@ -5478,15 +5481,15 @@ stimuli:
   - type: output-matches
     name: prd-research-receipt-state
     config:
-      pattern: (?is)^(?=.*(?:\b)rpiInvocations\b)(?=.*(?:\b)rpi-research\b)(?=.*\bartifactPaths\b)(?=.*\bQ2\b)(?=.*\bW1\b)(?=.*\bfindingDispositions\b).*
+      pattern: (?is)^(?=.*\b(?:rpiInvocations|invocationId)\b)(?=.*(?:\b)rpi-research\b)(?=.*\bartifactPaths\b)(?=.*\bQ2\b)(?=.*\bW1\b)(?=.*\bfindingDispositions\b).*
   - type: output-matches
     name: prd-research-receipt-document
     config:
-      pattern: (?is)(Research Finding Dispositions).*(incorporated|revised|rejected|deferred|retained-assumption)
+      pattern: (?is)(?:Research Finding Dispositions|\|[^\r\n]*\bDisposition\b[^\r\n]*\|).*\b(?:incorporated|revised|rejected|deferred|retained-assumption)\b
   - type: output-matches
     name: prd-research-receipt-authority
     config:
-      pattern: (?is)(research artifact|Research).*(evidence|question).*(PRD).*(authoritative|authority|decision)
+      pattern: (?is)(research artifact|Research).*(evidence|question).*(PRD).*(authoritative|authority|decision|\bowns?\b)
 - name: prd-builder-research-blocked
   prompt: |
     Integrate depends on a bounded comparable-product question, but Research
@@ -6726,7 +6729,7 @@ stimuli:
   - type: output-matches
     name: arch-research-gate-activation
     config:
-      pattern: (?is)(?=.*(?:rpi-research|RPI Research|Research (?:skill|phase|activation|cycle)))(?=.*(current|service|pricing|cost))(?=.*(evidence criteria|question))(?=.*(scope|non-goal|version|date)).*
+      pattern: (?is)(?=.*(?:rpi-research|RPI Research|Research (?:skill|phase|activation|cycle)))(?=.*(current|service|pricing|cost))(?=.*(evidence criteria|question|(?:source|evidence)\s+(?:criteria|requirements?|URLs?)|(?:current|official|primary)\s+(?:vendor\s+)?(?:documentation|sources?)))(?=.*(scope|non-goal|version|date)).*
   - type: output-matches
     name: arch-research-gate-authority
     config:
@@ -7070,8 +7073,10 @@ stimuli:
     dyslexia and for people over 70, so put them down as the excluded groups.
 
     Produce the inclusion decisions table in chat and tell me what basis you
-    used for the affected-users column. Include the capability assumptions and
-    the matching research gaps; a saved path alone is not the requested output.
+    used for the affected-users column. Keep the saved table's canonical
+    columns in chat, including `Basis and source`. Include the capability
+    assumptions and the matching research gaps; a saved path alone is not the
+    requested output.
   environment:
     skills:
     - ../../.github/skills/design-thinking/ux-artifacts

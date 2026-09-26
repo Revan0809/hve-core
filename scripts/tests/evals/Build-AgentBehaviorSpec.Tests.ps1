@@ -880,8 +880,11 @@ console.log(JSON.stringify(results));
         'Retry at most once with the complete original dispatch, failure detail, and functional-findings.json.',
         'Retry no more than once with the complete dispatch, missing output reason, and expected findings file.',
         'Retry once with the full original dispatch contract, the no output failure and functional-findings.json.',
-        'Retry once with the entire original dispatch prompt, missing output detail and expected findings file.')
+        'Retry once with the entire original dispatch prompt, missing output detail and expected findings file.',
+        'Retry the Functional perspective once using its complete original dispatch prompt, the no output failure and the expected findings-file path.')
       Reject = @('Retry twice with complete original dispatch, failure and functional-findings.json.', 'Retry once with failure and functional-findings.json.',
+        'Retry the Functional perspective twice using its complete original dispatch, the failure and functional-findings.json.',
+        'Retry the Functional perspective at least once using its complete original dispatch, the failure and functional-findings.json.',
         'Retry at most once with the complete original dispatch, failure and functional-findings.json. Then retry indefinitely.',
         'Retry the complete dispatch until it succeeds; include the failure and functional-findings.json.')
     }
@@ -1008,8 +1011,11 @@ console.log(JSON.stringify(results));
         'Retry **once** with the original orientation task, diff-state.json, orientation-walkthrough.md and failure detail.',
         'Retry at most once with the original orientation task, diff-state.json, orientation-walkthrough.md and failure detail.',
         'Retry no more than once with the original orientation task, diff-state.json, orientation-walkthrough.md and failure detail.',
-        'Make exactly one additional attempt with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail.')
+        'Make exactly one additional attempt with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail.',
+        'Retry the orientation worker once with the original orientation task, diff-state.json, orientation-walkthrough.md and failure detail.')
       Reject = @('Retry twice with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail.',
+        'Retry the orientation worker twice with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail.',
+        'Retry the orientation worker at least once with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail.',
         'Retry once with the orientation task, state path and output path.',
         'Retry once with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail. Then retry twice.',
         'Retry at most once with the original orientation task, diff-state.json, orientation-walkthrough.md and error detail. Then retry indefinitely.',
@@ -1088,6 +1094,38 @@ console.log(JSON.stringify(results));
         'rpiInvocations rpi-research artifactPaths Q2 W1', 'rpiInvocations rpi-research Q2 W1 findingDispositions')
     }
     @{
+      Spec = 'stimuli/prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Grader = 'prd-research-receipt-state'; Count = 3
+      Accept = '{"invocationId":"build-01","capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-api-research.md"},"findingDispositions":[]}'
+      Reject = @('{"capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":{"research":"atlas-api-research.md"},"findingDispositions":[]}')
+    }
+    @{
+      Spec = 'stimuli/prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Grader = 'prd-research-receipt-document'; Count = 3
+      Accept = @("## Research Finding Dispositions`nW1 is deferred.", "| Evidence IDs | Affected target | Disposition | Rationale |`n|---|---|---|---|`n| W1 | API compatibility | deferred | Q2 stays open. |")
+      Reject = @('{"findingDispositions":[{"evidenceIds":["W1"],"disposition":"deferred"}]}', "| Evidence IDs | Rationale |`n|---|---|`n| W1 | Q2 stays open. |")
+    }
+    @{
+      Spec = 'stimuli/prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Grader = 'prd-research-receipt-authority'; Count = 3
+      Accept = @('Research owns its questions and evidence identifiers, but the PRD owns requirement wording and dispositions.', 'The Research artifact supplies evidence; the PRD keeps decision authority.')
+      Reject = @('Research returned Q2 and W1 for the PRD.', 'Research supplied evidence for the PRD and it is final.')
+    }
+    @{
+      Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Grader = 'brd-research-receipt-state'; Count = 3
+      Accept = @('{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}',
+        '{"rpiInvocations":[{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}]}')
+      Reject = @('{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}',
+        '{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"}}')
+    }
+    @{
+      Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Grader = 'brd-research-receipt-document'; Count = 3
+      Accept = @("## Research Finding Dispositions`nC1 is deferred.", "| Gap ID | Evidence IDs | Disposition | Rationale |`n|---|---|---|---|`n| REG | C1 | Deferred | Q1 stays open. |")
+      Reject = @('{"findingDispositions":[{"evidenceIds":["C1"],"disposition":"deferred"}]}', "| Gap ID | Evidence IDs | Disposition |`n|---|---|---|`n| REG | C1 | Pending |")
+    }
+    @{
+      Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Grader = 'brd-research-receipt-authority'; Count = 3
+      Accept = @('Research is authoritative for its question and evidence identifiers; the BRD owns the disposition.', 'Research owns question and evidence IDs, but the BRD owns requirement decisions.')
+      Reject = @('Research returned Q1 and C1 for the BRD.', 'The BRD records the Research evidence and question.')
+    }
+    @{
       Spec = 'stimuli/system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-produces-convergence-research'; Grader = 'architecture-convergence-research-compares-options'; Count = 4
       Accept = @("## Recommendation and Alternatives`nRecommend the managed queue over the self-hosted broker on supplied evidence C1. Confidence: medium; unresolved load shape.`n## Research Questions`nQ1: Which option fits?`n## Evidence Ledger`nC1: staged cost and reliability comparison.",
         "## Questions`nQ1: Which option fits?`n## Evidence`nC1: managed queue and self-hosted broker trade-offs.`n## Recommendation`nPrefer the managed queue. Confidence: medium. Unresolved: load shape.",
@@ -1110,8 +1148,10 @@ console.log(JSON.stringify(results));
       Spec = 'stimuli/system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-research-gate'; Grader = 'arch-research-gate-activation'; Count = 2
       Accept = @('Activate rpi-research for current pricing with explicit questions, scope and date limits.',
         'Start the RPI Research phase on current service limits; the brief lists questions, scope and version boundaries.',
-        'Run the Research skill for current cost evidence with evidence criteria, non-goals and a date scope.')
-      Reject = @('I will research current pricing with questions and a scope.', 'Activate rpi-research with questions and scope.', 'Activate rpi-research for current pricing and scope.')
+        'Run the Research skill for current cost evidence with evidence criteria, non-goals and a date scope.',
+        'Run a bounded RPI Research pass on current vendor documentation and pricing sources; record source URLs and retrieval dates within the review scope.')
+      Reject = @('I will research current pricing with questions and a scope.', 'Activate rpi-research with questions and scope.', 'Activate rpi-research for current pricing and scope.',
+        'Run a bounded RPI Research pass on pricing within the review scope.')
     }
     @{
       Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-native-emission-sha-gate'; Grader = 'complete-pr-state-check'; Count = 2
@@ -1345,6 +1385,10 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     $stimuli['experiment-designer-produces-execution-rpi-artifacts'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-implement'
     $stimuli['experiment-designer-critiques-execution-plan'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan-critique'
     $stimuli['experiment-designer-reviews-execution'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-review'
+    $stimuli['experiment-designer-reviews-execution'].environment.files.dest | Should -Contain 'evidence/experiment-run-data.md'
+    $reviewPlan = $stimuli['experiment-designer-reviews-execution'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
+    (Get-Content -Raw (Join-Path $script:ObservationRoot $reviewPlan.src)) | Should -Not -Match '(?m)^#{3,4} \[ \] P01'
+    $stimuli['experiment-designer-executes-convergence-research'].prompt | Should -Match ([regex]::Escape('.copilot-tracking/mve/2026-09-21/synthetic-batching/'))
     $stimuli['experiment-designer-plans-execution'].prompt | Should -Match 'stop before its critique'
 
     $draftMount = $stimuli['experiment-designer-critiques-execution-plan'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'

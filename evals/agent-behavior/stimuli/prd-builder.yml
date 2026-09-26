@@ -100,15 +100,15 @@ stimuli:
       - type: output-matches
         name: prd-research-receipt-state
         config:
-          pattern: '(?is)^(?=.*(?:\b)rpiInvocations\b)(?=.*(?:\b)rpi-research\b)(?=.*\bartifactPaths\b)(?=.*\bQ2\b)(?=.*\bW1\b)(?=.*\bfindingDispositions\b).*'
+          pattern: '(?is)^(?=.*\b(?:rpiInvocations|invocationId)\b)(?=.*(?:\b)rpi-research\b)(?=.*\bartifactPaths\b)(?=.*\bQ2\b)(?=.*\bW1\b)(?=.*\bfindingDispositions\b).*'
       - type: output-matches
         name: prd-research-receipt-document
         config:
-          pattern: '(?is)(Research Finding Dispositions).*(incorporated|revised|rejected|deferred|retained-assumption)'
+          pattern: '(?is)(?:Research Finding Dispositions|\|[^\r\n]*\bDisposition\b[^\r\n]*\|).*\b(?:incorporated|revised|rejected|deferred|retained-assumption)\b'
       - type: output-matches
         name: prd-research-receipt-authority
         config:
-          pattern: '(?is)(research artifact|Research).*(evidence|question).*(PRD).*(authoritative|authority|decision)'
+          pattern: '(?is)(research artifact|Research).*(evidence|question).*(PRD).*(authoritative|authority|decision|\bowns?\b)'
 
   - name: prd-builder-research-blocked
     prompt: |

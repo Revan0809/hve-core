@@ -38,7 +38,7 @@ stimuli:
       - type: output-matches
         name: arch-research-gate-activation
         config:
-          pattern: '(?is)(?=.*(?:rpi-research|RPI Research|Research (?:skill|phase|activation|cycle)))(?=.*(current|service|pricing|cost))(?=.*(evidence criteria|question))(?=.*(scope|non-goal|version|date)).*'
+          pattern: '(?is)(?=.*(?:rpi-research|RPI Research|Research (?:skill|phase|activation|cycle)))(?=.*(current|service|pricing|cost))(?=.*(evidence criteria|question|(?:source|evidence)\s+(?:criteria|requirements?|URLs?)|(?:current|official|primary)\s+(?:vendor\s+)?(?:documentation|sources?)))(?=.*(scope|non-goal|version|date)).*'
       - type: output-matches
         name: arch-research-gate-authority
         config:

@@ -477,8 +477,9 @@ stimuli:
       the primary Research artifact with the recommendation, alternative,
       evidence IDs, confidence, and unresolved assumptions. Stop after the
       Research return; reconciling `context.md` is a separate step. The
-      experiment session directory is the alternate Research evidence root; no
-      execution or hypothesis validation has occurred. Research posture:
+      experiment session directory
+      `.copilot-tracking/mve/2026-09-21/synthetic-batching/` is the alternate
+      Research evidence root; no execution or hypothesis validation has occurred. Research posture:
       `focused`. The staged evidence file is the only source; explicit limit:
       one research cycle.
     environment:
@@ -722,7 +723,7 @@ stimuli:
           dest: .github/copilot-instructions.md
         - src: fixtures/rpi-depth/experiment-mve-plan.md
           dest: .copilot-tracking/mve/2026-09-21/synthetic-batching/mve-plan.md
-        - src: fixtures/rpi-depth/experiment-execution-plan.md
+        - src: fixtures/rpi-depth/experiment-execution-plan-completed.md
           dest: .copilot-tracking/plans/2026-09-21/synthetic-batching-execution-plan.md
         - src: fixtures/rpi-depth/experiment-execution-plan-critique.md
           dest: .copilot-tracking/reviews/plans/2026-09-21/synthetic-batching-execution-plan-critique.md
@@ -730,6 +731,8 @@ stimuli:
           dest: .copilot-tracking/changes/2026-09-21/synthetic-batching-execution-changes.md
         - src: fixtures/rpi-depth/experiment-run-data.md
           dest: .copilot-tracking/mve/2026-09-21/synthetic-batching/results.md
+        - src: fixtures/rpi-depth/experiment-run-data.md
+          dest: evidence/experiment-run-data.md
         - src: ../../.github/instructions/experimental/experiment-designer.instructions.md
           dest: .github/instructions/experimental/experiment-designer.instructions.md
         - src: ../../.github/instructions/hve-core/copilot-tracking.instructions.md

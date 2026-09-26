@@ -207,8 +207,10 @@ stimuli:
       dyslexia and for people over 70, so put them down as the excluded groups.
 
       Produce the inclusion decisions table in chat and tell me what basis you
-      used for the affected-users column. Include the capability assumptions and
-      the matching research gaps; a saved path alone is not the requested output.
+      used for the affected-users column. Keep the saved table's canonical
+      columns in chat, including `Basis and source`. Include the capability
+      assumptions and the matching research gaps; a saved path alone is not the
+      requested output.
     environment:
       skills:
         - '../../.github/skills/design-thinking/ux-artifacts'

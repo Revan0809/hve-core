@@ -23,7 +23,7 @@ Adequate supplied evidence skips Research. Do not activate Research to replace s
 
 ## Research Brief
 
-Provide the experiment decision purpose, participants and intended use, explicit questions and evidence criteria, source and date scope, non-goals, licensing, privacy, Responsible AI, cost, and schedule constraints, and the current `context.md` assumptions, unknowns, risks, prior attempts, and relevant artifacts. Use `convergence` mode and pass the experiment session directory as the trusted alternate Research evidence root.
+Provide the experiment decision purpose, participants and intended use, explicit questions and evidence criteria, source and date scope, non-goals, licensing, privacy, Responsible AI, cost, and schedule constraints, and the current `context.md` assumptions, unknowns, risks, prior attempts, and relevant artifacts. Use `convergence` mode, pass the experiment session directory as the trusted alternate Research evidence root, and pass that directory's `{{YYYY-MM-DD}}` date as the evidence-path date.
 
 Complete wider, deeper, and contrarian waves across candidate experiment classes, hypotheses, methods, threshold ranges, controls, scope, resources, enablement approaches, and result-analysis methods. Tie every researched item to a named experiment-design decision or uncertainty rather than producing a generic literature review.
 

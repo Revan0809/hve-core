@@ -79,16 +79,23 @@ stimuli:
 
   - name: brd-builder-research-receipt
     prompt: |
-      Discover has a named regulatory gap that the BRD and supplied references
-      do not answer. Research returned artifact
-      `.copilot-tracking/research/2026-09-18/atlas-research.md` with Q1 and C1.
-      Show the resulting state receipt entry and the BRD
+      Resume the staged Atlas BRD in Discover. Gap `REG-01` is a named
+      regulatory gap that the BRD and supplied references do not answer.
+      Research segment `discover-01` returned the staged primary artifact
+      `.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md`.
+      Read it, then show the resulting state receipt entry and the BRD
       `Research Finding Dispositions` row in your reply, then explain the
       authority boundary.
     environment:
       files:
         - src: ../../.github/agents/project-planning/brd-builder.agent.md
           dest: .github/copilot-instructions.md
+        - src: fixtures/rpi-depth/brd-state.json
+          dest: .copilot-tracking/brd-sessions/atlas.state.json
+        - src: fixtures/rpi-depth/atlas-brd.md
+          dest: docs/project-planning/atlas-brd.md
+        - src: fixtures/rpi-depth/brd-discover-01-research.md
+          dest: .copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md
       skills:
         - ../../.github/skills/project-planning/requirements-author
         - ../../.github/skills/rpi/rpi-research
@@ -99,7 +106,7 @@ stimuli:
       - type: output-matches
         name: brd-research-receipt-state
         config:
-          pattern: '(?is)(?=.*(?:rpiInvocations|invocationId))(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*'
+          pattern: '(?is)(?=.*(?:rpiInvocations|invocationId))(?=.*capability.{0,80}rpi-research)(?=.*artifactPaths.{0,160}research.{0,160}atlas-brd-discover-01-research\.md)(?=.*questionIds.{0,80}Q1)(?=.*evidenceIds.{0,80}C1)(?=.*findingDispositions).*'
       - type: output-matches
         name: brd-research-receipt-document
         config:

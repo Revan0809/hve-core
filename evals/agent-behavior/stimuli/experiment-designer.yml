@@ -473,7 +473,7 @@ stimuli:
       Resume synthetic experiment `synthetic-batching` after Phase 1. I confirm
       convergence Research task `synthetic-batching-recommendation` using only
       the staged experiment evidence. Preserve the synthetic session date
-      `2026-09-21`. Perform it now under the session evidence root and write
+      `2026-09-21` in paths, including the Research date folder. Perform it now under the session evidence root and write
       the primary Research artifact with the recommendation, alternative,
       evidence IDs, confidence, and unresolved assumptions. Stop after the
       Research return; reconciling `context.md` is a separate step. The

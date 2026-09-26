@@ -1087,7 +1087,7 @@ console.log(JSON.stringify(results));
     }
     @{
       Spec = 'stimuli/prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Grader = 'prd-research-receipt-state'; Count = 3
-      Accept = @('{"rpiInvocations":[{"capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":[".copilot-tracking/research/2026-09-18/atlas-api-research.md"],"findingDispositions":[]}]}',
+      Accept = @('{"rpiInvocations":[{"capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":[".copilot-tracking/prd-sessions/atlas-product/research/2026-09-21/atlas-product-prd-build-03-research.md"],"findingDispositions":[]}]}',
         'findingDispositions retains Q2 and W1; artifactPaths points to the primary artifact in the rpi-research entry of rpiInvocations.')
       Reject = @('rpiInvocations rpi-research artifactPaths questionIds evidenceIds findingDispositions',
         'rpiInvocations rpi-research artifactPaths Q3 W1 findingDispositions', 'rpiInvocations rpi-research artifactPaths Q2 W2 findingDispositions',
@@ -1095,7 +1095,7 @@ console.log(JSON.stringify(results));
     }
     @{
       Spec = 'stimuli/prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Grader = 'prd-research-receipt-state'; Count = 3
-      Accept = '{"invocationId":"build-01","capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-api-research.md"},"findingDispositions":[]}'
+      Accept = '{"invocationId":"build-01","capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":{"research":".copilot-tracking/prd-sessions/atlas-product/research/2026-09-21/atlas-product-prd-build-03-research.md"},"findingDispositions":[]}'
       Reject = @('{"capability":"rpi-research","questionIds":["Q2"],"evidenceIds":["W1"],"artifactPaths":{"research":"atlas-api-research.md"},"findingDispositions":[]}')
     }
     @{
@@ -1110,10 +1110,11 @@ console.log(JSON.stringify(results));
     }
     @{
       Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Grader = 'brd-research-receipt-state'; Count = 3
-      Accept = @('{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}',
-        '{"rpiInvocations":[{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}]}')
-      Reject = @('{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}',
-        '{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"}}')
+      Accept = @('{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md"},"findingDispositions":[]}',
+        '{"rpiInvocations":[{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md"},"findingDispositions":[]}]}')
+      Reject = @('{"capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md"},"findingDispositions":[]}',
+        '{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md"}}',
+        '{"invocationId":"discover-01","capability":"rpi-research","questionIds":["Q1"],"evidenceIds":["C1"],"artifactPaths":{"research":".copilot-tracking/research/2026-09-18/atlas-research.md"},"findingDispositions":[]}')
     }
     @{
       Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Grader = 'brd-research-receipt-document'; Count = 3
@@ -1389,6 +1390,8 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     $reviewPlan = $stimuli['experiment-designer-reviews-execution'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
     (Get-Content -Raw (Join-Path $script:ObservationRoot $reviewPlan.src)) | Should -Not -Match '(?m)^#{3,4} \[ \] P01'
     $stimuli['experiment-designer-executes-convergence-research'].prompt | Should -Match ([regex]::Escape('.copilot-tracking/mve/2026-09-21/synthetic-batching/'))
+    $stimuli['experiment-designer-executes-convergence-research'].prompt | Should -Match '(?s)2026-09-21`\s+in\s+paths,\s+including\s+the\s+Research\s+date\s+folder'
+    $architecture[0].prompt | Should -Match '(?s)2026-09-21`;\s+use\s+that\s+date\s+in\s+the\s+Research\s+artifact\s+path'
     $stimuli['experiment-designer-plans-execution'].prompt | Should -Match 'stop before its critique'
 
     $draftMount = $stimuli['experiment-designer-critiques-execution-plan'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
@@ -1413,6 +1416,22 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     $stimuli['brd-builder-reconciles-completed-research-segment'].environment.files.dest | Should -Contain '.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md'
     $stimuli['experiment-designer-reconciles-convergence-research'].environment.files.dest | Should -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/research/2026-09-21/synthetic-batching-recommendation-research.md'
     $stimuli['prd-builder-reconciles-completed-authoring-segment'].environment.files.dest | Should -Contain '.copilot-tracking/changes/2026-09-21/atlas-product-prd-build-02-changes.md'
+  }
+
+  It 'Stages the Research artifact each receipt scenario cites for <Scenario>' -Tag 'NativeFixture' -ForEach @(
+    @{ File = 'brd-builder.yml'; Scenario = 'brd-builder-research-receipt'; Artifact = '.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md'; Ids = @('C1', 'Q1')
+      Companions = @('.copilot-tracking/brd-sessions/atlas.state.json', 'docs/project-planning/atlas-brd.md') }
+    @{ File = 'prd-builder.yml'; Scenario = 'prd-builder-research-receipt'; Artifact = '.copilot-tracking/prd-sessions/atlas-product/research/2026-09-21/atlas-product-prd-build-03-research.md'; Ids = @('Q2', 'W1')
+      Companions = @('.copilot-tracking/prd-sessions/atlas-product.state.json', 'docs/project-planning/atlas-product.md') }
+  ) {
+    $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
+    $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)
+    $stimulus | Should -HaveCount 1
+    $stimulus[0].prompt | Should -Match ([regex]::Escape($Artifact))
+    foreach ($dest in @($Artifact) + $Companions) { $stimulus[0].environment.files.dest | Should -Contain $dest }
+    $mount = $stimulus[0].environment.files | Where-Object dest -eq $Artifact
+    $content = Get-Content -Raw (Join-Path $script:ObservationRoot $mount.src)
+    @([regex]::Matches($content, '(?<![A-Za-z0-9_-])[QCW][0-9]+(?![A-Za-z0-9_-])').Value | Sort-Object -Unique) | Should -Be $Ids
   }
 
   It 'Stages phase-faithful research and distinct complete outcome evidence' -Tag 'NativeFixture' {

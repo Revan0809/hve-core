@@ -81,15 +81,23 @@ stimuli:
 
   - name: prd-builder-research-receipt
     prompt: |
-      The PRD has a named API compatibility gap that supplied references do not
-      answer. Research returned artifact
-      `.copilot-tracking/research/2026-09-18/atlas-api-research.md` with Q2 and
-      W1. Show the resulting canonical invocation receipt entry and the PRD
-      disposition row in your reply, then explain the authority boundary.
+      Resume the staged Atlas PRD in Build. The PRD has a named API
+      compatibility gap that supplied references do not answer. Research
+      invocation `build-03` returned the staged primary artifact
+      `.copilot-tracking/prd-sessions/atlas-product/research/2026-09-21/atlas-product-prd-build-03-research.md`.
+      Read it, then show the resulting canonical invocation receipt entry and
+      the PRD disposition row in your reply, then explain the authority
+      boundary.
     environment:
       files:
         - src: ../../.github/agents/project-planning/prd-builder.agent.md
           dest: .github/copilot-instructions.md
+        - src: fixtures/rpi-depth/prd-state.json
+          dest: .copilot-tracking/prd-sessions/atlas-product.state.json
+        - src: fixtures/rpi-depth/atlas-prd.md
+          dest: docs/project-planning/atlas-product.md
+        - src: fixtures/rpi-depth/prd-build-03-research.md
+          dest: .copilot-tracking/prd-sessions/atlas-product/research/2026-09-21/atlas-product-prd-build-03-research.md
       skills:
         - ../../.github/skills/project-planning/requirements-author
         - ../../.github/skills/rpi/rpi-research

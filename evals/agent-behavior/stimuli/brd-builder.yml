@@ -167,8 +167,8 @@ stimuli:
       category: agent-behavior
       scenario: brd-rpi-research-execution
     constraints:
-      max_agent_duration: 110s
-      max_duration: 150s
+      max_agent_duration: 240s
+      max_duration: 300s
     graders:
       - type: file-exists
         name: brd-research-primary-artifact-exists

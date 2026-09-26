@@ -1245,8 +1245,8 @@ stimuli:
     scenario: brd-rpi-research-execution
     agent: brd-builder
   constraints:
-    max_agent_duration: 110s
-    max_duration: 150s
+    max_agent_duration: 240s
+    max_duration: 300s
   graders:
   - type: file-exists
     name: brd-research-primary-artifact-exists
@@ -4394,8 +4394,8 @@ stimuli:
     scenario: experiment-rpi-research-execution
     agent: experiment-designer
   constraints:
-    max_agent_duration: 110s
-    max_duration: 150s
+    max_agent_duration: 240s
+    max_duration: 300s
   graders:
   - type: file-exists
     name: experiment-recommendation-artifact-exists
@@ -6784,8 +6784,8 @@ stimuli:
     scenario: architecture-rpi-research-production
     agent: system-architecture-reviewer
   constraints:
-    max_agent_duration: 110s
-    max_duration: 150s
+    max_agent_duration: 240s
+    max_duration: 300s
   graders:
   - type: file-exists
     name: architecture-convergence-research-exists

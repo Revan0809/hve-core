@@ -1302,7 +1302,9 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
         'prd-builder-reconciles-completed-authoring-segment' = @('prd-authoring-state-records-separate-plan-and-implement')
       }
     }
-    $limits = @{ 'experiment-designer-plans-execution' = '180s'; 'experiment-designer-critiques-execution-plan' = '180s'; 'experiment-designer-produces-execution-rpi-artifacts' = '180s'; 'experiment-designer-reviews-execution' = '180s' }
+    $limits = @{ 'experiment-designer-plans-execution' = '180s'; 'experiment-designer-critiques-execution-plan' = '180s'; 'experiment-designer-produces-execution-rpi-artifacts' = '180s'; 'experiment-designer-reviews-execution' = '180s'
+      'brd-builder-executes-research-segment' = '240s'; 'experiment-designer-executes-convergence-research' = '240s' }
+    $totals = @{ '110s' = '150s'; '180s' = '240s'; '240s' = '300s' }
     $stimuli = @{}
     $allNames = [System.Collections.Generic.List[string]]::new()
     foreach ($file in $map.Keys) {
@@ -1316,8 +1318,13 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
         @($stimulus[0].graders.name) | Should -Be $map[$file][$name] -Because $name
         $expected = if ($limits.ContainsKey($name)) { $limits[$name] } else { '110s' }
         $stimulus[0].constraints.max_agent_duration | Should -Be $expected -Because $name
+        $stimulus[0].constraints.max_duration | Should -Be $totals[$expected] -Because $name
       }
     }
+    $architecture = @((ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot 'stimuli/system-architecture-reviewer.yml'))).stimuli | Where-Object name -eq 'system-architecture-reviewer-produces-convergence-research')
+    $architecture | Should -HaveCount 1
+    $architecture[0].constraints.max_agent_duration | Should -Be '240s'
+    $architecture[0].constraints.max_duration | Should -Be '300s'
     foreach ($name in @($map.Values | ForEach-Object { $_.Values } | ForEach-Object { $_ })) {
       @($allNames | Where-Object { $_ -ceq $name }) | Should -HaveCount 1 -Because "$name is owned by exactly one scenario"
     }

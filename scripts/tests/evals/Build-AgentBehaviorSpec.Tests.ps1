@@ -1521,6 +1521,7 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     @{ File = 'dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Patterns = @('(?s)what the team does\s+next') }
     @{ File = 'ux-ui-designer.yml'; Scenario = 'ux-ui-designer-mural-environment-verdicts'; Patterns = @('(?s)stop\s+and\s+wait\s+for\s+a\s+retry', '(?s)names\s+the\s+fix') }
     @{ File = 'system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-produces-convergence-research'; Patterns = @('(?s)`\.copilot-tracking/research/2026-09-21/synthetic-queue-convergence-research\.md`') }
+    @{ File = 'experiment-designer.yml'; Scenario = 'experiment-designer-reviews-execution'; Patterns = @('(?s)`\.copilot-tracking/reviews/logs/2026-09-21/synthetic-batching-execution-review\.md`', '(?s)record\s+it\s+in\s+that\s+Review\s+record\s+as\s+a\s+Blocked\s+Review') }
   ) {
     $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
     $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)

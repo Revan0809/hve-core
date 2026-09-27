@@ -4626,8 +4626,11 @@ stimuli:
     `synthetic-batching-execution` (synthetic date `2026-09-21`) is
     Review-ready: the staged plan, critique, Changes and results are the
     execution evidence. I confirm the one execution-conformance Review
-    against them now. If required evidence is missing, stop and report it.
-    Do not write `outcome.md` or decide whether `H1` is validated.
+    against them now. Write the Review record to
+    `.copilot-tracking/reviews/logs/2026-09-21/synthetic-batching-execution-review.md`.
+    If required evidence is missing, record it in that Review record as a
+    Blocked Review, then stop. Do not write `outcome.md` or decide whether
+    `H1` is validated.
   environment:
     files:
     - src: ../../.github/agents/experimental/experiment-designer.agent.md

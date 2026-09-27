@@ -1037,23 +1037,29 @@ console.log(JSON.stringify(results));
     }
     @{
       Spec = 'stimuli/experiment-designer.yml'; Scenario = 'experiment-designer-research-preparation'; Grader = 'experiment-research-not-validation'; Count = 3
-      Accept = 'Research is preparation evidence; it does not validate the hypothesis.'
+      Accept = @('Research is preparation evidence; it does not validate the hypothesis.', 'Research does **not** validate the hypothesis; it is preparation evidence.')
       Reject = @('Research evidence validates the hypothesis.', 'Research provides preparation evidence.')
     }
     @{
       Spec = 'stimuli/experiment-designer.yml'; Scenario = 'experiment-designer-research-unavailable'; Grader = 'experiment-research-gap-recorded'; Count = 3
       Accept = @('Research is unavailable, so record the evidence gap as inconclusive.', 'Retain the unknown as a recorded gap because Research is blocked.',
-        'Research is unavailable, so I note the gap in context.md.', 'Research is blocked; I will flag the unknown and document it.')
+        'Research is unavailable, so I note the gap in context.md.', 'Research is blocked; I will flag the unknown and document it.',
+        'Record it in context.md as an unresolved current-platform constraint and note that Research is unavailable.')
       Reject = @('Research is unavailable.', 'Record the validated result and continue.', 'Research is unavailable; the gap is resolved.')
     }
     @{
       Spec = 'stimuli/experiment-designer.yml'; Scenario = 'experiment-designer-research-unavailable'; Grader = 'experiment-research-dependent-stop'; Count = 3
       Accept = @('Pause the dependent hypothesis, but continue unrelated framing.', 'Unrelated experiment framing may proceed; the affected hypothesis must stop.',
         'Block the dependent hypothesis. Continue unrelated framing.', 'Hold the affected hypothesis until Research returns; unrelated framing can proceed.',
-        'Do not pause unrelated framing; pause the dependent hypothesis and continue other framing.')
+        'Do not pause unrelated framing; pause the dependent hypothesis and continue other framing.',
+        'Defer only the affected hypothesis until the gap is resolved. Continue Phase 2 for hypotheses that don''t depend on that constraint.',
+        'Mark only the dependent hypothesis blocked in hypotheses.md; form and prioritize unrelated hypotheses normally.',
+        'The dependent hypothesis cannot proceed until the constraint is confirmed, but other framing continues.',
+        'Record an unresolved gap in context.md because Research is unavailable. Mark only the dependent hypothesis blocked in hypotheses.md and continue forming and prioritizing independent hypotheses.')
       Reject = @('Continue the dependent hypothesis and unrelated work.', 'Pause the affected hypothesis and do not continue unrelated work.',
         'Do not pause the dependent hypothesis. Continue unrelated framing.', "Don't stop the affected hypothesis; continue unrelated framing.",
-        'Pause the affected hypothesis. Do not continue unrelated framing.', 'Set a threshold for the hypothesis and continue unrelated framing.')
+        'Pause the affected hypothesis. Do not continue unrelated framing.', 'Set a threshold for the hypothesis and continue unrelated framing.',
+        'Block the dependent hypothesis. Unrelated framing cannot continue.')
     }
     @{
       Spec = 'stimuli/brd-builder.yml'; Scenario = 'brd-builder-research-blocked'; Grader = 'brd-research-blocked-gap'; Count = 3
@@ -1434,6 +1440,17 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     @([regex]::Matches($content, '(?<![A-Za-z0-9_-])[QCW][0-9]+(?![A-Za-z0-9_-])').Value | Sort-Object -Unique) | Should -Be $Ids
   }
 
+  It 'States the reply or state shape its checks require for <Scenario>' -Tag 'LexicalRepair' -ForEach @(
+    @{ File = 'documentation.yml'; Scenario = 'documentation-audit-class-recipe'; Patterns = @('one `##` heading', '(?s)starts\s+`Completion condition:`', '(?s)unnumbered\s+bullets') }
+    @{ File = 'experiment-designer.yml'; Scenario = 'experiment-designer-research-unavailable'; Patterns = @('(?s)how you\s+record the gap', '(?s)which hypothesis\s+is\s+blocked', '(?s)framing of independent\s+hypotheses continues') }
+    @{ File = 'experiment-designer.yml'; Scenario = 'experiment-designer-research-preparation'; Patterns = @('(?s)Name the Research skill you\s+would activate') }
+    @{ File = 'prd-builder.yml'; Scenario = 'prd-builder-reconciles-completed-authoring-segment'; Patterns = @('(?s)I accept the returned\s+changes', '(?s)`gateEffect`\s+records\s+the\s+segment') }
+  ) {
+    $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
+    $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)
+    $stimulus | Should -HaveCount 1
+    foreach ($pattern in $Patterns) { $stimulus[0].prompt | Should -Match $pattern -Because $Scenario }
+  }
   It 'Stages phase-faithful research and distinct complete outcome evidence' -Tag 'NativeFixture' {
     $specification = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot 'stimuli/experiment-designer.yml'))
     $research = $specification.stimuli | Where-Object name -eq 'experiment-designer-executes-convergence-research'

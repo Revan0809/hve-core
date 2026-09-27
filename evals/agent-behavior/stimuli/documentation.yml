@@ -6,9 +6,14 @@ stimuli:
       Plan a documentation coverage audit for the small synthetic `docs/` tree
       supplied in this workspace. Do not imply coverage of a larger repository.
       Write the plan to `.copilot-tracking/documentation/audit-plan.md`.
-      In your response, list the ordered phase headings and a concrete completion
-      condition for each phase before reporting the path you wrote. Do not perform
-      the audit or change the documentation itself.
+      In your response, list the ordered phases before reporting the path you
+      wrote. Use this layout in both the response and the plan: one `##` heading
+      per phase that names its audit action (for example inventory, assess,
+      prioritize or report), with a line directly beneath it that starts
+      `Completion condition:` and names the concrete evidence, such as files,
+      pages, gaps or findings. In the response, each phase is only its heading
+      and its completion-condition line; put any supporting detail in unnumbered
+      bullets. Do not perform the audit or change the documentation itself.
     agent_environment:
       files:
         - src: fixtures/documentation-audit.txt

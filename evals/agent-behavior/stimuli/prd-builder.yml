@@ -206,10 +206,11 @@ stimuli:
       Resume the staged Atlas PRD in Build. Implement invocation `build-02`
       with task slug `atlas-product-prd-build-02` completed against accepted
       Plan invocation `build-01` and returned the staged canonical changes
-      record for synthetic date `2026-09-21`. Reconcile only `build-02` in
-      session state now, preserving `build-01` and unknown fields. Do not
-      rerun Implement, run content-quality review, or claim the Build gate
-      passed.
+      record for synthetic date `2026-09-21`. I accept the returned changes.
+      Reconcile only `build-02` in session state now, preserving `build-01`
+      and unknown fields; `gateEffect` records the segment's own contribution,
+      while the Build gate itself stays open. Do not rerun Implement, run
+      content-quality review, or claim the Build gate passed.
     environment:
       files:
         - src: ../../.github/agents/project-planning/prd-builder.agent.md

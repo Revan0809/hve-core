@@ -78,6 +78,34 @@ category_for() {
     esac
 }
 
+staged_path_for() {
+    local path="${1//\\//}"
+    while [[ "$path" == ./* ]]; do
+        path="${path#./}"
+    done
+    if [[ "$path" == /* || "$path" =~ ^[A-Za-z]: ]]; then
+        printf "ArtifactPath must be repository-relative: '%s'.\n" "$1" >&2
+        return 1
+    fi
+    if [[ "/$path/" == */../* ]]; then
+        printf "ArtifactPath must not contain '..' segments: '%s'.\n" "$1" >&2
+        return 1
+    fi
+    printf '%s' "$path"
+}
+
+# Routed eval files sit two levels below the repository root, so sources ascend twice.
+environment_block() {
+    local staged="$1"
+    if [[ "$2" == "skill" ]]; then
+        local skill_dir="${staged%/SKILL.md}"
+        skill_dir="${skill_dir%/}"
+        printf '    agent_environment:\n      skills:\n        - ../../%s' "$skill_dir"
+    else
+        printf '    agent_environment:\n      files:\n        - src: ../../%s\n          dest: %s' "$staged" "$staged"
+    fi
+}
+
 emit_prompt_block() {
     while IFS= read -r line; do
         printf '      %s\n' "$line"
@@ -126,6 +154,7 @@ EOF
     esac
 }
 
+staged_path="$(staged_path_for "$artifact_path")" || exit 2
 hash="$(normalize_and_hash "$prompt_text")"
 leaf="$(leaf_for "$artifact_path")"
 name="${leaf}-conformance-${hash:0:8}"
@@ -136,6 +165,7 @@ block=$(cat <<EOF
   - name: ${name}
     prompt: |
 $(emit_prompt_block "$prompt_text")
+$(environment_block "$staged_path" "$kind")
     tags:
       category: ${category}
       kind: ${kind}

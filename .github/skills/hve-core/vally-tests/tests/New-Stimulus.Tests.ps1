@@ -107,6 +107,43 @@ Describe 'New-Stimulus' -Tag 'Unit' {
         }
     }
 
+    Context 'Artifact staging' {
+        It 'Stages a file artifact at its repository path with a two-level source' {
+            $block = & $script:scriptPath `
+                -ArtifactPath '.github/agents/hve-core/rpi-agent.agent.md' `
+                -Kind agent -PromptText 'Exercise the agent.' | Out-String
+
+            $block | Should -Match '(?m)^    agent_environment:\r?\n      files:\r?\n        - src: \.\./\.\./\.github/agents/hve-core/rpi-agent\.agent\.md\r?\n          dest: \.github/agents/hve-core/rpi-agent\.agent\.md\r?$'
+            $block.IndexOf('agent_environment:') | Should -BeLessThan $block.IndexOf('    tags:')
+        }
+
+        It 'Stages a skill artifact as its skill directory' {
+            $block = & $script:scriptPath `
+                -ArtifactPath '.github/skills/hve-core/vally-tests/SKILL.md' `
+                -Kind skill -PromptText 'Exercise the skill.' | Out-String
+
+            $block | Should -Match '(?m)^    agent_environment:\r?\n      skills:\r?\n        - \.\./\.\./\.github/skills/hve-core/vally-tests\r?$'
+            $block | Should -Not -Match 'files:'
+        }
+
+        It 'Normalizes backslash separators in staged paths' {
+            $block = & $script:scriptPath -ArtifactPath '.github\prompts\hve-core\rpi.prompt.md' `
+                -Kind prompt -PromptText 'hi' | Out-String
+
+            $block | Should -Match 'src: \.\./\.\./\.github/prompts/hve-core/rpi\.prompt\.md'
+            $block | Should -Match 'dest: \.github/prompts/hve-core/rpi\.prompt\.md'
+        }
+
+        It 'Rejects <Case> artifact paths' -ForEach @(
+            @{ Case = 'rooted'; Path = '/etc/x.prompt.md' }
+            @{ Case = 'drive-rooted'; Path = 'C:\repo\x.prompt.md' }
+            @{ Case = 'traversal'; Path = '.github/../../x.prompt.md' }
+        ) {
+            { & $script:scriptPath -ArtifactPath $Path -Kind prompt -PromptText 'hi' } |
+                Should -Throw
+        }
+    }
+
     Context 'Output file append' {
         It 'Creates the file with a stimuli header and appends the block' {
             $outFile = Join-Path $script:testRoot 'suite.eval.yaml'

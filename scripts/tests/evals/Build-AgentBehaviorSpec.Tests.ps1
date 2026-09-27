@@ -1201,11 +1201,14 @@ console.log(JSON.stringify(results));
         "No. Don't re-offer it later in this DT run. If they explicitly request it later, you can offer it again.",
         "No. Don't re-offer the cards in this run; if the team explicitly asks later, you can bring it up again then.",
         'No. The decline holds for the rest of this run, so skip further customer-card offers.',
-        'No. Treat the decline as final and move on; only revisit it if the team asks.')
+        'No. Treat the decline as final and move on; only revisit it if the team asks.',
+        "No. Don't offer the cards again later in this run. Next, continue to Method 6.",
+        "No, don't ask the team again in this run; continue to Method 6.")
       Reject = @('Yes, I''ll ask again later in this run.', 'We can bring it up again later if it seems useful.',
         'No need to decide now; I''ll offer it again at the next checkpoint.',
         'No for now. If it seems useful later, you can offer it again.',
-        "Don't re-offer it now; I'll offer it again at Method 7.")
+        "Don't re-offer it now; I'll offer it again at Method 7.",
+        'Yes, offer the cards again later in this run.')
     }
     @{
       Spec = 'stimuli/dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Grader = 'continue-transition-guidance'; Count = 2

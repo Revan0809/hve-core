@@ -450,7 +450,7 @@ Describe 'Isolated agent environment generation' -Tag 'Unit' {
 stimuli:
   - name: agent-one-functional
     prompt: Functional prompt.
-    environment:
+    agent_environment:
       files:
         - src: ../../.github/agents/experimental/experiment-designer.agent.md
           dest: .github/copilot-instructions.md
@@ -462,12 +462,12 @@ stimuli:
 
         $spec = Read-OutputObject -Root $script:TestRoot
         $stimulus = $spec.stimuli | Where-Object { $_.name -eq 'agent-one-functional' }
-        $stimulus.environment.files | Should -HaveCount 1
-        $stimulus.environment.files[0].src | Should -Be '../../.github/agents/experimental/experiment-designer.agent.md'
-        $stimulus.environment.files[0].dest | Should -Be '.github/copilot-instructions.md'
-        $stimulus.environment.skills | Should -HaveCount 2
-        $stimulus.environment.skills | Should -Contain '../../.github/skills/project-planning/experiment-design'
-        $stimulus.environment.skills | Should -Contain '../../.github/skills/data-science-engineering/ml-experimentation'
+        $stimulus.agent_environment.files | Should -HaveCount 1
+        $stimulus.agent_environment.files[0].src | Should -Be '../../.github/agents/experimental/experiment-designer.agent.md'
+        $stimulus.agent_environment.files[0].dest | Should -Be '.github/copilot-instructions.md'
+        $stimulus.agent_environment.skills | Should -HaveCount 2
+        $stimulus.agent_environment.skills | Should -Contain '../../.github/skills/project-planning/experiment-design'
+        $stimulus.agent_environment.skills | Should -Contain '../../.github/skills/data-science-engineering/ml-experimentation'
     }
 
     It 'Keeps each agent environment isolated from other agents' {
@@ -475,7 +475,7 @@ stimuli:
 stimuli:
   - name: agent-one-functional
     prompt: Functional prompt.
-    environment:
+    agent_environment:
       files:
         - src: ../../.github/agents/experimental/experiment-designer.agent.md
           dest: .github/copilot-instructions.md
@@ -486,7 +486,7 @@ stimuli:
 stimuli:
   - name: agent-two-functional
     prompt: Functional prompt.
-    environment:
+    agent_environment:
       files:
         - src: ../../.github/agents/hve-core/documentation.agent.md
           dest: .github/copilot-instructions.md
@@ -499,10 +499,10 @@ stimuli:
         $one = $spec.stimuli | Where-Object { $_.name -eq 'agent-one-functional' }
         $two = $spec.stimuli | Where-Object { $_.name -eq 'agent-two-functional' }
 
-        $one.environment.files[0].dest | Should -Be $two.environment.files[0].dest
-        $one.environment.files[0].src | Should -Not -Be $two.environment.files[0].src
-        $one.environment.skills | Should -Not -Contain '../../.github/skills/hve-core/documentation'
-        $two.environment.skills | Should -Not -Contain '../../.github/skills/project-planning/experiment-design'
+        $one.agent_environment.files[0].dest | Should -Be $two.agent_environment.files[0].dest
+        $one.agent_environment.files[0].src | Should -Not -Be $two.agent_environment.files[0].src
+        $one.agent_environment.skills | Should -Not -Contain '../../.github/skills/hve-core/documentation'
+        $two.agent_environment.skills | Should -Not -Contain '../../.github/skills/project-planning/experiment-design'
     }
 
     It 'Leaves stimuli without a declared environment untouched' {
@@ -510,7 +510,7 @@ stimuli:
 stimuli:
   - name: agent-one-functional
     prompt: Functional prompt.
-    environment:
+    agent_environment:
       files:
         - src: ../../.github/agents/experimental/experiment-designer.agent.md
           dest: .github/copilot-instructions.md
@@ -521,7 +521,7 @@ stimuli:
 
         $spec = Read-OutputObject -Root $script:TestRoot
         $smoke = $spec.stimuli | Where-Object { $_.name -eq 'agent-one-smoke' }
-        $smoke.Contains('environment') | Should -BeFalse
+        $smoke.Contains('agent_environment') | Should -BeFalse
     }
 
     It 'Remains idempotent when a stimulus environment is present' {
@@ -529,7 +529,7 @@ stimuli:
 stimuli:
   - name: agent-one-functional
     prompt: Functional prompt.
-    environment:
+    agent_environment:
       files:
         - src: ../../.github/agents/experimental/experiment-designer.agent.md
           dest: .github/copilot-instructions.md
@@ -696,8 +696,8 @@ Describe 'Artifact inspection input contracts' -Tag 'Unit' {
     $stimulus = $partial.stimuli | Where-Object { $_.name -eq $Scenario }
     $stimulus.prompt | Should -Match 'prompt-visible smoke scenario'
     $stimulus.prompt | Should -Match 'in\s+chat'
-    $stimulus.Contains('agent_environment') | Should -BeFalse
     $stimulus.Contains('environment') | Should -BeFalse
+    $stimulus.Contains('agent_environment') | Should -BeFalse
     $stimulus.graders | Should -HaveCount $ExpectedCount
   }
 
@@ -1353,10 +1353,10 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
   It 'Stages a PRD Implement plan whose recorded assessment matches the canonical identity' -Tag 'NativeFixture', 'AdmissionFixture' {
     $specification = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot 'stimuli/prd-builder.yml'))
     $stimulus = $specification.stimuli | Where-Object name -eq 'prd-builder-executes-approved-authoring-plan'
-    $stimulus.environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan'
-    $stimulus.environment.skills | Should -Contain '../../.github/skills/rpi/rpi-implement'
-    $planMount = $stimulus.environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
-    $critiqueMount = $stimulus.environment.files | Where-Object dest -like '.copilot-tracking/reviews/plans/*'
+    $stimulus.agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan'
+    $stimulus.agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-implement'
+    $planMount = $stimulus.agent_environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
+    $critiqueMount = $stimulus.agent_environment.files | Where-Object dest -like '.copilot-tracking/reviews/plans/*'
     $fixturePlanPath = (Resolve-Path (Join-Path $script:ObservationRoot $planMount.src)).Path
     $critique = Get-Content -Raw (Join-Path $script:ObservationRoot $critiqueMount.src)
     $helper = Join-Path $PSScriptRoot '../../../.github/skills/rpi/rpi-plan/scripts/Get-PlanAssessmentHash.ps1'
@@ -1456,29 +1456,29 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
       'brd-builder-executes-research-segment' = '.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md'
       'prd-builder-executes-approved-authoring-plan' = '.copilot-tracking/changes/2026-09-21/atlas-product-prd-build-02-changes.md'
     }
-    foreach ($name in $noPrecreated.Keys) { $stimuli[$name].environment.files.dest | Should -Not -Contain $noPrecreated[$name] -Because $name }
-    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/results.md'
-    $stimuli['experiment-designer-reviews-execution'].environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/outcome.md'
-    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan'
-    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-implement'
-    $stimuli['experiment-designer-critiques-execution-plan'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan-critique'
-    $stimuli['experiment-designer-reviews-execution'].environment.skills | Should -Contain '../../.github/skills/rpi/rpi-review'
-    $stimuli['experiment-designer-reviews-execution'].environment.files.dest | Should -Contain 'evidence/experiment-run-data.md'
-    $reviewPlan = $stimuli['experiment-designer-reviews-execution'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
+    foreach ($name in $noPrecreated.Keys) { $stimuli[$name].agent_environment.files.dest | Should -Not -Contain $noPrecreated[$name] -Because $name }
+    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].agent_environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/results.md'
+    $stimuli['experiment-designer-reviews-execution'].agent_environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/outcome.md'
+    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan'
+    $stimuli['experiment-designer-produces-execution-rpi-artifacts'].agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-implement'
+    $stimuli['experiment-designer-critiques-execution-plan'].agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-plan-critique'
+    $stimuli['experiment-designer-reviews-execution'].agent_environment.skills | Should -Contain '../../.github/skills/rpi/rpi-review'
+    $stimuli['experiment-designer-reviews-execution'].agent_environment.files.dest | Should -Contain 'evidence/experiment-run-data.md'
+    $reviewPlan = $stimuli['experiment-designer-reviews-execution'].agent_environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
     (Get-Content -Raw (Join-Path $script:ObservationRoot $reviewPlan.src)) | Should -Not -Match '(?m)^#{3,4} \[ \] P01'
     $stimuli['experiment-designer-executes-convergence-research'].prompt | Should -Match ([regex]::Escape('.copilot-tracking/mve/2026-09-21/synthetic-batching/'))
     $stimuli['experiment-designer-executes-convergence-research'].prompt | Should -Match '(?s)2026-09-21`\s+in\s+paths,\s+including\s+the\s+Research\s+date\s+folder'
     $architecture[0].prompt | Should -Match '(?s)2026-09-21`;\s+use\s+that\s+date\s+in\s+the\s+Research\s+artifact\s+path'
     $stimuli['experiment-designer-plans-execution'].prompt | Should -Match 'stop before its critique'
 
-    $draftMount = $stimuli['experiment-designer-critiques-execution-plan'].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
+    $draftMount = $stimuli['experiment-designer-critiques-execution-plan'].agent_environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
     $draft = Get-Content -Raw (Join-Path $script:ObservationRoot $draftMount.src)
     $draft | Should -Not -Match '(?m)^## Critique Disposition'
     . (Join-Path $PSScriptRoot '../../../.github/skills/rpi/rpi-plan/scripts/Get-PlanAssessmentHash.ps1')
     { Get-PlanAssessmentHash -PlanPath (Resolve-Path (Join-Path $script:ObservationRoot $draftMount.src)).Path } | Should -Not -Throw
     foreach ($name in 'experiment-designer-produces-execution-rpi-artifacts', 'experiment-designer-reviews-execution') {
-      $planMount = $stimuli[$name].environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
-      $critiqueMount = $stimuli[$name].environment.files | Where-Object dest -like '.copilot-tracking/reviews/plans/*'
+      $planMount = $stimuli[$name].agent_environment.files | Where-Object dest -like '.copilot-tracking/plans/*'
+      $critiqueMount = $stimuli[$name].agent_environment.files | Where-Object dest -like '.copilot-tracking/reviews/plans/*'
       $identity = Get-PlanAssessmentHash -PlanPath (Resolve-Path (Join-Path $script:ObservationRoot $planMount.src)).Path
       $critique = Get-Content -Raw (Join-Path $script:ObservationRoot $critiqueMount.src)
       $recorded = [regex]::Match($critique, '(?s)```json\r?\n(.*?)\r?\n```').Groups[1].Value | ConvertFrom-Json
@@ -1490,9 +1490,9 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
 
     $brdArtifact = Get-Content -Raw (Join-Path $script:ObservationRoot 'fixtures/rpi-depth/brd-discover-01-research.md')
     @([regex]::Matches($brdArtifact, '(?<![A-Za-z0-9_-])[QCW][0-9]+(?![A-Za-z0-9_-])').Value | Sort-Object -Unique) | Should -Be @('C1', 'Q1')
-    $stimuli['brd-builder-reconciles-completed-research-segment'].environment.files.dest | Should -Contain '.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md'
-    $stimuli['experiment-designer-reconciles-convergence-research'].environment.files.dest | Should -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/research/2026-09-21/synthetic-batching-recommendation-research.md'
-    $stimuli['prd-builder-reconciles-completed-authoring-segment'].environment.files.dest | Should -Contain '.copilot-tracking/changes/2026-09-21/atlas-product-prd-build-02-changes.md'
+    $stimuli['brd-builder-reconciles-completed-research-segment'].agent_environment.files.dest | Should -Contain '.copilot-tracking/brd-sessions/atlas/research/2026-09-21/atlas-brd-discover-01-research.md'
+    $stimuli['experiment-designer-reconciles-convergence-research'].agent_environment.files.dest | Should -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/research/2026-09-21/synthetic-batching-recommendation-research.md'
+    $stimuli['prd-builder-reconciles-completed-authoring-segment'].agent_environment.files.dest | Should -Contain '.copilot-tracking/changes/2026-09-21/atlas-product-prd-build-02-changes.md'
   }
 
   It 'Stages the Research artifact each receipt scenario cites for <Scenario>' -Tag 'NativeFixture' -ForEach @(
@@ -1505,8 +1505,8 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)
     $stimulus | Should -HaveCount 1
     $stimulus[0].prompt | Should -Match ([regex]::Escape($Artifact))
-    foreach ($dest in @($Artifact) + $Companions) { $stimulus[0].environment.files.dest | Should -Contain $dest }
-    $mount = $stimulus[0].environment.files | Where-Object dest -eq $Artifact
+    foreach ($dest in @($Artifact) + $Companions) { $stimulus[0].agent_environment.files.dest | Should -Contain $dest }
+    $mount = $stimulus[0].agent_environment.files | Where-Object dest -eq $Artifact
     $content = Get-Content -Raw (Join-Path $script:ObservationRoot $mount.src)
     @([regex]::Matches($content, '(?<![A-Za-z0-9_-])[QCW][0-9]+(?![A-Za-z0-9_-])').Value | Sort-Object -Unique) | Should -Be $Ids
   }
@@ -1531,21 +1531,21 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
   It 'Stages phase-faithful research and distinct complete outcome evidence' -Tag 'NativeFixture' {
     $specification = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot 'stimuli/experiment-designer.yml'))
     $research = $specification.stimuli | Where-Object name -eq 'experiment-designer-executes-convergence-research'
-    $contextMount = $research.environment.files | Where-Object dest -like '*/context.md'
+    $contextMount = $research.agent_environment.files | Where-Object dest -like '*/context.md'
     $context = Get-Content -Raw (Join-Path $script:ObservationRoot $contextMount.src)
     $context | Should -Match 'has not been measured'
     $context | Should -Not -Match 'Review execution was|reduced median latency by 24%'
-    $research.environment.files.dest | Should -Contain '.github/instructions/experimental/experiment-designer.instructions.md'
+    $research.agent_environment.files.dest | Should -Contain '.github/instructions/experimental/experiment-designer.instructions.md'
     $outcome = $specification.stimuli | Where-Object name -eq 'experiment-designer-writes-post-execution-outcome'
-    $evidence = @($outcome.environment.files | Where-Object dest -like '.copilot-tracking/*')
+    $evidence = @($outcome.agent_environment.files | Where-Object dest -like '.copilot-tracking/*')
     $evidence | Should -HaveCount 5
     @($evidence.src | Sort-Object -Unique) | Should -HaveCount 5
     foreach ($mount in $evidence) { Test-Path (Join-Path $script:ObservationRoot $mount.src) | Should -BeTrue }
     $evidence.dest | Should -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/results.md'
-    $outcome.environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/outcome.md'
+    $outcome.agent_environment.files.dest | Should -Not -Contain '.copilot-tracking/mve/2026-09-21/synthetic-batching/outcome.md'
     $challenge = $specification.stimuli | Where-Object name -eq 'experiment-designer-starts-explicit-challenge'
     $challenge.prompt | Should -Match 'task slug `synthetic-batching-h1`'
-    $challenge.environment.files.dest | Should -Not -Contain '.copilot-tracking/challenges/2026-09-21/synthetic-batching-h1-challenge.md'
+    $challenge.agent_environment.files.dest | Should -Not -Contain '.copilot-tracking/challenges/2026-09-21/synthetic-batching-h1-challenge.md'
   }
 
   It 'Requires source-specific standards handling for <Variant>' -ForEach @(
@@ -1585,7 +1585,7 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     $specification = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot 'stimuli/experiment-designer.yml'))
     $stimulus = $specification.stimuli | Where-Object name -eq 'experiment-designer-writes-post-execution-outcome'
     $stimulus.graders | Should -HaveCount 3
-    $mounts = @($stimulus.environment.files | Where-Object dest -like '.copilot-tracking/*')
+    $mounts = @($stimulus.agent_environment.files | Where-Object dest -like '.copilot-tracking/*')
     foreach ($mount in $mounts) {
       $target = Join-Path $workspace $mount.dest
       New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
@@ -2036,8 +2036,8 @@ $script:RaiReviewerFixtureCaution
   }
 
   It 'Stages the RAI contract dependencies in one isolated response scenario' {
-    $files = @($script:RaiReviewerContract['environment']['files'])
-    $skills = @($script:RaiReviewerContract['environment']['skills'])
+    $files = @($script:RaiReviewerContract['agent_environment']['files'])
+    $skills = @($script:RaiReviewerContract['agent_environment']['skills'])
     $graderNames = @($script:RaiReviewerContract['graders'] | ForEach-Object { [string]$_['name'] })
 
     $files | Should -HaveCount 1

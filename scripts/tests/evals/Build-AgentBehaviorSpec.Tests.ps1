@@ -1197,13 +1197,19 @@ console.log(JSON.stringify(results));
       Accept = @('No. The decline stands; continue to Method 6 without asking again.',
         'No. Record the decline and skip the offer; it stands for the rest of this run.',
         'No. We won''t re-offer it. We can bring it up again later only if the team requests it.',
-        'No. The decline is final for this run.')
+        'No. The decline is final for this run.',
+        "No. Don't re-offer it later in this DT run. If they explicitly request it later, you can offer it again.",
+        "No. Don't re-offer the cards in this run; if the team explicitly asks later, you can bring it up again then.",
+        'No. The decline holds for the rest of this run, so skip further customer-card offers.',
+        'No. Treat the decline as final and move on; only revisit it if the team asks.')
       Reject = @('Yes, I''ll ask again later in this run.', 'We can bring it up again later if it seems useful.',
-        'No need to decide now; I''ll offer it again at the next checkpoint.')
+        'No need to decide now; I''ll offer it again at the next checkpoint.',
+        'No for now. If it seems useful later, you can offer it again.',
+        "Don't re-offer it now; I'll offer it again at Method 7.")
     }
     @{
       Spec = 'stimuli/dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Grader = 'continue-transition-guidance'; Count = 2
-      Accept = @('Proceed to Method 6.', "Continue with Methods 6$([char]0x2013)9.")
+      Accept = @('Proceed to Method 6.', "Continue with Methods 6$([char]0x2013)9.", "No. Don't re-offer it; you can proceed to the implementation methods.")
       Reject = @('Stay at Method 5 and wait.', 'Continue refining the Method 5 concepts.')
     }
     @{
@@ -1493,6 +1499,7 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     @{ File = 'prd-builder.yml'; Scenario = 'prd-builder-reconciles-completed-authoring-segment'; Patterns = @('(?s)I accept the returned\s+changes', '(?s)`gateEffect`\s+records\s+the\s+segment') }
     @{ File = 'system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-research-gate'; Patterns = @('(?s)Name the skill you\s+would activate', '(?s)questions,\s+evidence criteria and scope') }
     @{ File = 'code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Patterns = @('(?s)`Dispatch board`', '(?s)`Recommended\s+perspectives`', '(?s)`Recommended\s+depth`', '(?s)`Confirm\s+before\s+dispatch`') }
+    @{ File = 'dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Patterns = @('(?s)what the team does\s+next') }
   ) {
     $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
     $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)

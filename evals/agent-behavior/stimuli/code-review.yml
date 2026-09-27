@@ -423,10 +423,14 @@ stimuli:
       This is a behavior-contract scenario, not a live review. Do not call tools.
       Assume orientation found changes in `src/request-parser.ts`,
       `tests/request-parser.test.ts`, and `docs/deployment.md`. Present the
-      orientation handoff and decision-ready dispatch board, then ask for one
-      confirmation before dispatch. Make the board, perspective ownership,
-      omitted perspectives, and depth recommendation clear enough that I can
-      approve or edit them in one reply.
+      orientation handoff, then the decision-ready board under a
+      `Dispatch board` label as a table with `#`, `Area`, `Status`, and
+      `Preliminary signal` columns. Under `Confirm before dispatch`, give
+      `Recommended perspectives` with the board items each one owns, the
+      omitted perspectives, and `Recommended depth` with its rationale, then
+      ask for one confirmation before dispatch. Make the board, perspective
+      ownership, omitted perspectives, and depth recommendation clear enough
+      that I can approve or edit them in one reply.
     environment:
       files:
         - src: ../../.github/agents/coding-standards/code-review.agent.md
@@ -439,11 +443,11 @@ stimuli:
       - type: output-matches
         name: detailed-board
         config:
-          pattern: '(?is)(dispatch board).{0,500}(area).{0,300}(status).{0,300}(preliminary signal).{0,2000}(\.py|\.ts|\.js|\.md|symbol|function)'
+          pattern: '(?is)(dispatch board.{0,500}area.{0,300}status.{0,300}preliminary signal|\|\s*#\s*\|\s*area\s*\|\s*status\s*\|\s*preliminary signal\s*\|).{0,2000}(\.py|\.ts|\.js|\.md|symbol|function)'
       - type: output-matches
         name: perspectives-with-ownership
         config:
-          pattern: '(?is)(recommended (perspectives|dispatch)|perspective ownership)(?=.{0,2000}(functional|standards|readiness))(?=.{0,2000}(board items|B\d|item\s*#?\s*\**\d|#\s*\d|items?\s+\**\d))'
+          pattern: '(?is)(recommended (perspectives|dispatch)|proposed dispatch|perspective ownership)(?=.{0,2000}(functional|standards|readiness))(?=.{0,2000}(board items|B\d|item\s*#?\s*\**\d|#\s*\d|items?\s+\**\d|\bowns\s*\|.{0,400}\|\s*B?\d+(?:\s*,\s*B?\d+)*\s*\|))'
       - type: output-matches
         name: omitted-perspective-rationale
         config:
@@ -451,11 +455,11 @@ stimuli:
       - type: output-matches
         name: depth-with-rationale
         config:
-          pattern: '(?is)(recommended depth|depth:).{0,200}(basic|standard|comprehensive|tier [123]).{0,800}(because|change|risk|blast radius|hotspot|validation|ambiguity)'
+          pattern: '(?is)(recommended depth|depth recommendation|depth:).{0,200}(basic|standard|comprehensive|tier [123]).{0,800}(because|change|risk|blast radius|hotspot|validation|ambiguity)'
       - type: output-matches
         name: single-decision-prompt
         config:
-          pattern: '(?is)(confirm before dispatch|approve)(?=.{0,400}(board|perspective|depth))(?=.{0,400}(edit|adjust|reply))'
+          pattern: '(?is)(confirm|approve)(?=.{0,400}(board|perspective|depth))(?=.{0,400}(edit|adjust|reply))'
 
   - name: code-review-target-checkout-mismatch
     prompt: |

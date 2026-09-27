@@ -1156,9 +1156,55 @@ console.log(JSON.stringify(results));
       Accept = @('Activate rpi-research for current pricing with explicit questions, scope and date limits.',
         'Start the RPI Research phase on current service limits; the brief lists questions, scope and version boundaries.',
         'Run the Research skill for current cost evidence with evidence criteria, non-goals and a date scope.',
-        'Run a bounded RPI Research pass on current vendor documentation and pricing sources; record source URLs and retrieval dates within the review scope.')
+        'Run a bounded RPI Research pass on current vendor documentation and pricing sources; record source URLs and retrieval dates within the review scope.',
+        'Activate `rpi-research` for current managed-service pricing and limits. The brief sets source-quality criteria and stays within the confirmed cost and reliability scope.',
+        'Run the `rpi-research` skill on current service limits using official provider documentation, scoped to the two candidate platforms.',
+        'Activate `rpi-research` for current pricing; use authoritative sources only, within the confirmed review scope.')
       Reject = @('I will research current pricing with questions and a scope.', 'Activate rpi-research with questions and scope.', 'Activate rpi-research for current pricing and scope.',
         'Run a bounded RPI Research pass on pricing within the review scope.')
+    }
+    @{
+      Spec = 'stimuli/system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-research-gate'; Grader = 'arch-research-gate-authority'; Count = 2
+      Accept = @("The reviewer still owns the recommendation; Research findings are evidence and aren't a decision.",
+        'Research returns evidence. Don''t treat it as the recommendation; the user and reviewer retain the trade-off decision.')
+      Reject = @('Research owns and decides the architecture recommendation from its evidence.', 'Research findings replace the reviewer''s recommendation.')
+    }
+    @{
+      Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Grader = 'detailed-board'; Count = 5
+      Accept = @("Orientation handoff complete.`n`n| # | Area | Status | Preliminary signal |`n|---|---|---|---|`n| 1 | Parser | Proposed | Does the request contract change in src/request-parser.ts? |",
+        "## Decision-ready board`n`n| # | Area | Status | Preliminary signal |`n|---|---|---|---|`n| 1 | Docs | Proposed | Rollout steps in docs/deployment.md may be stale. |")
+      Reject = @('Dispatch board: 1. Parser 2. Tests 3. Docs',
+        "Dispatch board`n`n| # | Area | Status |`n|---|---|---|`n| 1 | Parser | Proposed |`nSee src/request-parser.ts.")
+    }
+    @{
+      Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Grader = 'perspectives-with-ownership'; Count = 5
+      Accept = @('Proposed dispatch: functional owns items 1 and 2; standards owns item 3; readiness owns item 3.',
+        "Recommended perspectives`n`n| Perspective | Owns | Rationale |`n|---|---|---|`n| functional | 1, 2 | Parser behavior and its tests |")
+      Reject = @('Recommended perspectives: functional, standards and readiness.')
+    }
+    @{
+      Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Grader = 'depth-with-rationale'; Count = 5
+      Accept = 'Depth recommendation: Standard (Tier 2), because the parser hotspot warrants focused review.'
+      Reject = @('Recommended depth: standard.')
+    }
+    @{
+      Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Grader = 'single-decision-prompt'; Count = 5
+      Accept = 'Please confirm or edit the board items, perspective set, and depth in one reply.'
+      Reject = @('First confirm the board. Then choose perspectives. Then choose depth.', 'The board is ready.')
+    }
+    @{
+      Spec = 'stimuli/dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Grader = 'no-reoffer-after-method-5-decline'; Count = 2
+      Accept = @('No. The decline stands; continue to Method 6 without asking again.',
+        'No. Record the decline and skip the offer; it stands for the rest of this run.',
+        'No. We won''t re-offer it. We can bring it up again later only if the team requests it.',
+        'No. The decline is final for this run.')
+      Reject = @('Yes, I''ll ask again later in this run.', 'We can bring it up again later if it seems useful.',
+        'No need to decide now; I''ll offer it again at the next checkpoint.')
+    }
+    @{
+      Spec = 'stimuli/dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Grader = 'continue-transition-guidance'; Count = 2
+      Accept = @('Proceed to Method 6.', "Continue with Methods 6$([char]0x2013)9.")
+      Reject = @('Stay at Method 5 and wait.', 'Continue refining the Method 5 concepts.')
     }
     @{
       Spec = 'stimuli/code-review.yml'; Scenario = 'code-review-native-emission-sha-gate'; Grader = 'complete-pr-state-check'; Count = 2
@@ -1445,6 +1491,8 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     @{ File = 'experiment-designer.yml'; Scenario = 'experiment-designer-research-unavailable'; Patterns = @('(?s)how you\s+record the gap', '(?s)which hypothesis\s+is\s+blocked', '(?s)framing of independent\s+hypotheses continues') }
     @{ File = 'experiment-designer.yml'; Scenario = 'experiment-designer-research-preparation'; Patterns = @('(?s)Name the Research skill you\s+would activate') }
     @{ File = 'prd-builder.yml'; Scenario = 'prd-builder-reconciles-completed-authoring-segment'; Patterns = @('(?s)I accept the returned\s+changes', '(?s)`gateEffect`\s+records\s+the\s+segment') }
+    @{ File = 'system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-research-gate'; Patterns = @('(?s)Name the skill you\s+would activate', '(?s)questions,\s+evidence criteria and scope') }
+    @{ File = 'code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Patterns = @('(?s)`Dispatch board`', '(?s)`Recommended\s+perspectives`', '(?s)`Recommended\s+depth`', '(?s)`Confirm\s+before\s+dispatch`') }
   ) {
     $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
     $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)

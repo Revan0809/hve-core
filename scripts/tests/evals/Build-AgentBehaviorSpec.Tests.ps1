@@ -959,16 +959,32 @@ console.log(JSON.stringify(results));
     @{
       Spec = 'stimuli/ux-ui-designer.yml'; Scenario = 'ux-ui-designer-mural-environment-verdicts'; Grader = 'ux-mural-cwd-remediation'; Count = 4
       Accept = @("Pause here and use the repository root for wrong_cwd.`n`ndeps_missing: Stop until dependencies are installed.", "### wrong_cwd`n`nPause and correct the working directory.`n`n### deps_missing`n`nStop until dependencies are installed.",
-        "For wrong_cwd and deps_missing, the actions are separate.`n`nwrong_cwd: Pause and correct the working directory.`n`ndeps_missing: Stop until dependencies are installed.")
+        "For wrong_cwd and deps_missing, the actions are separate.`n`nwrong_cwd: Pause and correct the working directory.`n`ndeps_missing: Stop until dependencies are installed.",
+        "- wrong_cwd: Switch to the working directory the readiness result names. Retry readiness only after the directory is corrected.`n- deps_missing: Install the missing dependencies. Retry readiness only after they are available.",
+        "- wrong_cwd: Run from the repository root. The readiness check stops here until the working directory is corrected.`n- deps_missing: Install the declared dependencies. The readiness check stops here until they are available.",
+        "### wrong_cwd`nVerdict: wrong_cwd`nStop and wait for a retry after moving to the repository root.`n`n### deps_missing`nVerdict: deps_missing`nStop and wait for a retry after the dependency setup.",
+        "wrong_cwd: Hold here and rerun from the repository root.`n`ndeps_missing: Hold here and run the dependency setup.")
       Reject = @("wrong_cwd: Use the repository root and continue now.`n`ndeps_missing: Pause until dependencies are installed.", "wrong_cwd: Do not pause; correct the working directory.`n`ndeps_missing: Stop for setup.", "wrong_cwd: Pause and install dependencies.`n`ndeps_missing: Stop and correct the working directory.",
-        'For wrong_cwd and deps_missing, pause and fix the working directory and dependencies.')
+        'For wrong_cwd and deps_missing, pause and fix the working directory and dependencies.',
+        "wrong_cwd: Switch to the repository root and rerun doctor.`n`ndeps_missing: Install the dependencies and rerun doctor.",
+        "wrong_cwd: Retry only after the dependency setup finishes.`n`ndeps_missing: Retry only after moving to the repository root.",
+        "### wrong_cwd`nVerdict: wrong_cwd`nStop and wait for a retry after the dependency setup.`n`n### deps_missing`nVerdict: deps_missing`nStop and wait for a retry after moving to the repository root.",
+        "wrong_cwd: Don't hold; rerun from the repository root.`n`ndeps_missing: Don't hold; run the dependency setup.")
     }
     @{
       Spec = 'stimuli/ux-ui-designer.yml'; Scenario = 'ux-ui-designer-mural-environment-verdicts'; Grader = 'ux-mural-dependency-remediation'; Count = 4
       Accept = @("Stop until dependencies are installed for deps_missing.`n`nwrong_cwd: Pause and correct the working directory.", "### deps_missing`n`nStop until dependencies are installed.`n`n### wrong_cwd`n`nPause and correct the working directory.",
-        "Both wrong_cwd and deps_missing need separate handling.`n`ndeps_missing: Stop until dependencies are installed.`n`nwrong_cwd: Pause and correct the working directory.")
+        "Both wrong_cwd and deps_missing need separate handling.`n`ndeps_missing: Stop until dependencies are installed.`n`nwrong_cwd: Pause and correct the working directory.",
+        "- wrong_cwd: Switch to the working directory the readiness result names. Retry readiness only after the directory is corrected.`n- deps_missing: Install the missing dependencies. Retry readiness only after they are available.",
+        "- wrong_cwd: Run from the repository root. The readiness check stops here until the working directory is corrected.`n- deps_missing: Install the declared dependencies. The readiness check stops here until they are available.",
+        "### wrong_cwd`nVerdict: wrong_cwd`nStop and wait for a retry after moving to the repository root.`n`n### deps_missing`nVerdict: deps_missing`nStop and wait for a retry after the dependency setup.",
+        "wrong_cwd: Hold here and rerun from the repository root.`n`ndeps_missing: Hold here and run the dependency setup.")
       Reject = @("deps_missing: Install dependencies and proceed now.`n`nwrong_cwd: Pause and correct the working directory.", "deps_missing: Install dependencies.`n`nwrong_cwd: Stop and fix the working directory.", "deps_missing: Stop and correct the working directory.`n`nwrong_cwd: Pause for dependency setup.",
-        'For wrong_cwd and deps_missing, pause and fix the working directory and dependencies.')
+        'For wrong_cwd and deps_missing, pause and fix the working directory and dependencies.',
+        "wrong_cwd: Switch to the repository root and rerun doctor.`n`ndeps_missing: Install the dependencies and rerun doctor.",
+        "wrong_cwd: Retry only after the dependency setup finishes.`n`ndeps_missing: Retry only after moving to the repository root.",
+        "### wrong_cwd`nVerdict: wrong_cwd`nStop and wait for a retry after the dependency setup.`n`n### deps_missing`nVerdict: deps_missing`nStop and wait for a retry after moving to the repository root.",
+        "wrong_cwd: Don't hold; rerun from the repository root.`n`ndeps_missing: Don't hold; run the dependency setup.")
     }
     @{
       Spec = 'stimuli/ux-ui-designer.yml'; Scenario = 'ux-ui-designer-unsupported-cohort-guardrail'; Grader = 'names-research-gap'; Count = 3
@@ -1503,6 +1519,8 @@ console.log(JSON.stringify(await new ProgramGrader().grade(input)));
     @{ File = 'system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-research-gate'; Patterns = @('(?s)Name the skill you\s+would activate', '(?s)questions,\s+evidence criteria and scope') }
     @{ File = 'code-review.yml'; Scenario = 'code-review-decision-ready-dispatch-board'; Patterns = @('(?s)`Dispatch board`', '(?s)`Recommended\s+perspectives`', '(?s)`Recommended\s+depth`', '(?s)`Confirm\s+before\s+dispatch`') }
     @{ File = 'dt-coach.yml'; Scenario = 'dt-coach-method-5-first-decline-no-reoffer'; Patterns = @('(?s)what the team does\s+next') }
+    @{ File = 'ux-ui-designer.yml'; Scenario = 'ux-ui-designer-mural-environment-verdicts'; Patterns = @('(?s)stop\s+and\s+wait\s+for\s+a\s+retry', '(?s)names\s+the\s+fix') }
+    @{ File = 'system-architecture-reviewer.yml'; Scenario = 'system-architecture-reviewer-produces-convergence-research'; Patterns = @('(?s)`\.copilot-tracking/research/2026-09-21/synthetic-queue-convergence-research\.md`') }
   ) {
     $partial = ConvertFrom-Yaml -Yaml (Get-Content -Raw (Join-Path $script:ObservationRoot "stimuli/$File"))
     $stimulus = @($partial.stimuli | Where-Object name -eq $Scenario)

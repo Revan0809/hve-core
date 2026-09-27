@@ -80,7 +80,9 @@ stimuli:
       Scope is confirmed for synthetic review `synthetic-queue` with reliability
       and cost focus. I confirm convergence Research task
       `synthetic-queue-convergence` for synthetic date `2026-09-21`; use that date in
-      the Research artifact path. Use only
+      the Research artifact path. Write the primary Research artifact to
+      `.copilot-tracking/research/2026-09-21/synthetic-queue-convergence-research.md`.
+      Use only
       the staged architecture options, compare both candidates, preserve the
       evidence boundary, and write the canonical primary Research artifact now.
       Return the recommendation to Architecture Reviewer, but do not create the

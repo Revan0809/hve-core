@@ -385,7 +385,9 @@ stimuli:
       A completed synthetic journey asset has an explicit Mural target and
       facilitator mode. Explain the next action for each local readiness
       result: `wrong_cwd` and `deps_missing`. Keep the outcomes separate. Do
-      not publish anything or run another Mural command.
+      not publish anything or run another Mural command. For each result,
+      write one line that starts with the result name, says that you stop and
+      wait for a retry, and names the fix.
     environment:
       skills:
         - '../../.github/skills/design-thinking/ux-artifacts'
@@ -408,12 +410,15 @@ stimuli:
               try {
                 const input = JSON.parse(fs.readFileSync(process.env.EVALUATE_GRADER_INPUT, 'utf8'));
                 const lines = input.trajectory.output.replace(/[*`]/g, '').split(/\r?\n/);
-                const boundaries = lines.flatMap((line, index) => /\bwrong_cwd\b/i.test(line) !== /\bdeps_missing\b/i.test(line) ? [index] : []);
-                const owners = boundaries.filter(index => /\bwrong_cwd\b/i.test(lines[index]));
-                if (owners.length !== 1 || /\bdeps_missing\b/i.test(lines[owners[0]])) process.exit(1);
-                const end = boundaries.find(index => index > owners[0]) ?? lines.length;
-                const section = lines.slice(owners[0], end).join('\n');
-                const pause = /(?<!\b(?:not|never|no|without|don['\u2019]t|won['\u2019]t)\s)\b(?:pause|paused|stop|stopped|halt|wait|waiting|blocked)\b/i.test(section);
+                const own = /\bwrong_cwd\b/i;
+                const other = /\bdeps_missing\b/i;
+                const start = lines.findIndex(line => own.test(line) && !other.test(line));
+                if (start < 0) process.exit(1);
+                const next = lines.findIndex((line, index) => index > start && other.test(line) && !own.test(line));
+                const section = lines.slice(start, next < 0 ? lines.length : next).join('\n');
+                const halt = /(?<!\b(?:not|never|no|without|don['\u2019]t|won['\u2019]t)\s)\b(?:pause|paused|stop|stops|stopped|halt|hold|wait|waiting|blocked)\b/i.test(section);
+                const gated = /\b(?:retry|rerun|re-run|repeat|continue|proceed)\b[^.\n]{0,80}\b(?:only after|until)\b/i.test(section);
+                const pause = halt || gated;
                 const remedy = /\b(?:repository root|project root|skill directory|working directory)\b|--project/i.test(section);
                 const unsafe = /(?<!\b(?:not|never|without)\s)\b(?:continue|proceed|publish)\s+(?:now|immediately)\b/i.test(section);
                 process.exit(pause && remedy && !unsafe ? 0 : 1);
@@ -429,12 +434,15 @@ stimuli:
               try {
                 const input = JSON.parse(fs.readFileSync(process.env.EVALUATE_GRADER_INPUT, 'utf8'));
                 const lines = input.trajectory.output.replace(/[*`]/g, '').split(/\r?\n/);
-                const boundaries = lines.flatMap((line, index) => /\bwrong_cwd\b/i.test(line) !== /\bdeps_missing\b/i.test(line) ? [index] : []);
-                const owners = boundaries.filter(index => /\bdeps_missing\b/i.test(lines[index]));
-                if (owners.length !== 1 || /\bwrong_cwd\b/i.test(lines[owners[0]])) process.exit(1);
-                const end = boundaries.find(index => index > owners[0]) ?? lines.length;
-                const section = lines.slice(owners[0], end).join('\n');
-                const pause = /(?<!\b(?:not|never|no|without|don['\u2019]t|won['\u2019]t)\s)\b(?:pause|paused|stop|stopped|halt|wait|waiting|blocked)\b/i.test(section);
+                const own = /\bdeps_missing\b/i;
+                const other = /\bwrong_cwd\b/i;
+                const start = lines.findIndex(line => own.test(line) && !other.test(line));
+                if (start < 0) process.exit(1);
+                const next = lines.findIndex((line, index) => index > start && other.test(line) && !own.test(line));
+                const section = lines.slice(start, next < 0 ? lines.length : next).join('\n');
+                const halt = /(?<!\b(?:not|never|no|without|don['\u2019]t|won['\u2019]t)\s)\b(?:pause|paused|stop|stops|stopped|halt|hold|wait|waiting|blocked)\b/i.test(section);
+                const gated = /\b(?:retry|rerun|re-run|repeat|continue|proceed)\b[^.\n]{0,80}\b(?:only after|until)\b/i.test(section);
+                const pause = halt || gated;
                 const remedy = /\b(?:dependency|dependencies|setup)\b/i.test(section);
                 const unsafe = /(?<!\b(?:not|never|without)\s)\b(?:continue|proceed|publish)\s+(?:now|immediately)\b/i.test(section);
                 process.exit(pause && remedy && !unsafe ? 0 : 1);

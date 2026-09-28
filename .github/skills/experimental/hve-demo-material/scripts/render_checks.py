@@ -377,21 +377,24 @@ def measure_minutes(mp4: Path) -> float | None:
     """Return the MP4 duration in minutes via ffprobe, or None."""
     if not mp4.is_file():
         return None
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-            str(mp4),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "csv=p=0",
+                str(mp4),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
     try:
         return float(result.stdout.strip()) / 60
     except ValueError:
@@ -704,25 +707,28 @@ def parse_webvtt(text: str) -> list[tuple[float, float, str]]:
 def subtitle_languages(mp4: Path) -> list[str] | None:
     """Return the language tag of every subtitle stream in ``mp4``.
 
-    Returns ``None`` when ffprobe cannot read the file.
+    Returns ``None`` when ffprobe is unavailable or cannot read the file.
     """
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "s",
-            "-show_entries",
-            "stream=index:stream_tags=language",
-            "-of",
-            "json",
-            str(mp4),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "s",
+                "-show_entries",
+                "stream=index:stream_tags=language",
+                "-of",
+                "json",
+                str(mp4),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
     if result.returncode != 0:
         return None
     try:

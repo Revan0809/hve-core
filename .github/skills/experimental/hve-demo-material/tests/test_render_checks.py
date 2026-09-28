@@ -385,6 +385,18 @@ class TestEvaluate:
     def _english_subtitles(self, mocker):
         mocker.patch("render_checks.subtitle_languages", return_value=["eng"])
 
+    @pytest.mark.parametrize("probe", ["measure_minutes", "subtitle_languages"])
+    def test_given_no_ffprobe_when_probed_then_none(self, tmp_path, mocker, probe):
+        import render_checks
+
+        mocker.stopall()
+        mp4 = tmp_path / "video.mp4"
+        mp4.write_bytes(b"mp4")
+        mocker.patch(
+            "render_checks.subprocess.run", side_effect=FileNotFoundError("ffprobe")
+        )
+        assert getattr(render_checks, probe)(mp4) is None
+
     def _level(self, tmp_path, level="L100", mocker=None):
         _write_slides(tmp_path, 3)
         (tmp_path / "output").mkdir()

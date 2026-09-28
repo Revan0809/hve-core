@@ -83,25 +83,6 @@ def _leftover_temp_dirs(directory: Path) -> list[Path]:
 class TestSubprocessTimeout:
     """Every external call is bounded by the configured timeout."""
 
-    def test_given_timeout_when_assemble_video_then_every_subprocess_receives_timeout(
-        self, tmp_path, fake_ffmpeg
-    ):
-        # Arrange
-        manifest_path = _write_inputs(tmp_path, duration=None)
-
-        # Act
-        assemble_video.assemble_video(
-            manifest_path=manifest_path,
-            output_path=tmp_path / "demo.mp4",
-            fps=None,
-            resolution=None,
-            timeout=5,
-        )
-
-        # Assert
-        assert fake_ffmpeg.calls
-        assert all(kwargs.get("timeout") == 5 for _, kwargs in fake_ffmpeg.calls)
-
     def test_given_ffmpeg_times_out_when_assemble_video_then_raises_manifest_error(
         self, tmp_path, fake_ffmpeg
     ):
@@ -131,6 +112,13 @@ class TestSubprocessTimeout:
         with pytest.raises(assemble_video.ManifestError, match="timed out after 3"):
             assemble_video._probe_duration(audio_path, timeout=3)
 
+    def test_given_no_timeout_flag_when_parse_args_then_defaults_to_600(self):
+        # Act
+        args = assemble_video.create_parser().parse_args(["--manifest", "m.yml"])
+
+        # Assert
+        assert args.timeout == 600
+
     @pytest.mark.parametrize("timeout", [0, 86401])
     def test_given_out_of_range_timeout_when_assemble_video_then_raises(
         self, tmp_path, fake_ffmpeg, timeout
@@ -148,12 +136,24 @@ class TestSubprocessTimeout:
                 timeout=timeout,
             )
 
-    def test_given_no_timeout_flag_when_parse_args_then_defaults_to_600(self):
+    def test_given_timeout_when_assemble_video_then_every_subprocess_receives_timeout(
+        self, tmp_path, fake_ffmpeg
+    ):
+        # Arrange
+        manifest_path = _write_inputs(tmp_path, duration=None)
+
         # Act
-        args = assemble_video.create_parser().parse_args(["--manifest", "m.yml"])
+        assemble_video.assemble_video(
+            manifest_path=manifest_path,
+            output_path=tmp_path / "demo.mp4",
+            fps=None,
+            resolution=None,
+            timeout=5,
+        )
 
         # Assert
-        assert args.timeout == 600
+        assert fake_ffmpeg.calls
+        assert all(kwargs.get("timeout") == 5 for _, kwargs in fake_ffmpeg.calls)
 
 
 class TestMalformedMedia:
@@ -216,6 +216,25 @@ class TestOutputIntegrity:
         # Assert
         assert not output_path.exists()
 
+    def test_given_existing_output_when_assemble_video_succeeds_then_output_replaced(
+        self, tmp_path, fake_ffmpeg
+    ):
+        # Arrange
+        manifest_path = _write_inputs(tmp_path)
+        output_path = tmp_path / "demo.mp4"
+        output_path.write_bytes(b"previous")
+
+        # Act
+        result = assemble_video.assemble_video(
+            manifest_path=manifest_path,
+            output_path=output_path,
+            fps=None,
+            resolution=None,
+        )
+
+        # Assert
+        assert result.read_bytes() == b"mp4"
+
     def test_given_existing_output_when_concat_fails_then_existing_output_unchanged(
         self, tmp_path, fake_ffmpeg
     ):
@@ -237,25 +256,6 @@ class TestOutputIntegrity:
 
         # Assert
         assert output_path.read_bytes() == b"previous"
-
-    def test_given_existing_output_when_assemble_video_succeeds_then_output_replaced(
-        self, tmp_path, fake_ffmpeg
-    ):
-        # Arrange
-        manifest_path = _write_inputs(tmp_path)
-        output_path = tmp_path / "demo.mp4"
-        output_path.write_bytes(b"previous")
-
-        # Act
-        result = assemble_video.assemble_video(
-            manifest_path=manifest_path,
-            output_path=output_path,
-            fps=None,
-            resolution=None,
-        )
-
-        # Assert
-        assert result.read_bytes() == b"mp4"
 
     def test_given_quote_in_output_dir_when_assemble_video_then_concat_entries_escaped(
         self, tmp_path, fake_ffmpeg
@@ -280,23 +280,6 @@ class TestOutputIntegrity:
 
 class TestCleanup:
     """Temporary segment directories never outlive the run."""
-
-    def test_given_successful_run_when_assemble_video_then_temp_dir_removed(
-        self, tmp_path, fake_ffmpeg
-    ):
-        # Arrange
-        manifest_path = _write_inputs(tmp_path)
-
-        # Act
-        assemble_video.assemble_video(
-            manifest_path=manifest_path,
-            output_path=tmp_path / "demo.mp4",
-            fps=None,
-            resolution=None,
-        )
-
-        # Assert
-        assert _leftover_temp_dirs(tmp_path) == []
 
     def test_given_interrupt_during_render_when_assemble_video_then_temp_dir_removed(
         self, tmp_path, fake_ffmpeg
@@ -330,6 +313,23 @@ class TestCleanup:
 
         # Assert
         assert exit_code == 130
+
+    def test_given_successful_run_when_assemble_video_then_temp_dir_removed(
+        self, tmp_path, fake_ffmpeg
+    ):
+        # Arrange
+        manifest_path = _write_inputs(tmp_path)
+
+        # Act
+        assemble_video.assemble_video(
+            manifest_path=manifest_path,
+            output_path=tmp_path / "demo.mp4",
+            fps=None,
+            resolution=None,
+        )
+
+        # Assert
+        assert _leftover_temp_dirs(tmp_path) == []
 
 
 class TestValidationBounds:

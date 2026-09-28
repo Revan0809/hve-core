@@ -39,20 +39,6 @@ def _run(tmp_path, *extra):
 class TestRegionRequirement:
     """Synthesis requires an explicit region; dry-run does not."""
 
-    def test_given_no_region_when_synthesize_then_exits_2_before_sdk_use(
-        self, tmp_path, monkeypatch, fake_speech
-    ):
-        # Arrange
-        make_content_tree(tmp_path / "content", ["Synthetic narration."])
-        monkeypatch.setenv("SPEECH_KEY", PLACEHOLDER_KEY)
-
-        # Act
-        exit_code = _run(tmp_path)
-
-        # Assert
-        assert exit_code == 2
-        assert fake_speech.configs == []
-
     def test_given_blank_region_when_synthesize_then_exits_2(
         self, tmp_path, monkeypatch, fake_speech
     ):
@@ -79,6 +65,20 @@ class TestRegionRequirement:
 
         # Assert
         assert exit_code == 0
+        assert fake_speech.configs == []
+
+    def test_given_no_region_when_synthesize_then_exits_2_before_sdk_use(
+        self, tmp_path, monkeypatch, fake_speech
+    ):
+        # Arrange
+        make_content_tree(tmp_path / "content", ["Synthetic narration."])
+        monkeypatch.setenv("SPEECH_KEY", PLACEHOLDER_KEY)
+
+        # Act
+        exit_code = _run(tmp_path)
+
+        # Assert
+        assert exit_code == 2
         assert fake_speech.configs == []
 
     def test_given_region_when_key_auth_then_fake_config_receives_region_and_key(
@@ -120,6 +120,20 @@ class TestCredentialPrecedence:
         assert fake_speech.configs[0].subscription == PLACEHOLDER_KEY
         assert credential.scopes == []
 
+    def test_given_no_credentials_when_synthesize_then_exits_2(
+        self, tmp_path, monkeypatch, fake_speech
+    ):
+        # Arrange
+        make_content_tree(tmp_path / "content", ["Synthetic narration."])
+        monkeypatch.setenv("SPEECH_REGION", "westus3")
+
+        # Act
+        exit_code = _run(tmp_path)
+
+        # Assert
+        assert exit_code == 2
+        assert fake_speech.synthesis_calls == []
+
     def test_given_resource_id_only_when_synthesize_then_entra_token_used(
         self, tmp_path, monkeypatch, fake_speech, install_credential
     ):
@@ -137,20 +151,6 @@ class TestCredentialPrecedence:
         assert fake_speech.configs[0].auth_token == (
             f"aad#{PLACEHOLDER_RESOURCE_ID}#tok-1"
         )
-
-    def test_given_no_credentials_when_synthesize_then_exits_2(
-        self, tmp_path, monkeypatch, fake_speech
-    ):
-        # Arrange
-        make_content_tree(tmp_path / "content", ["Synthetic narration."])
-        monkeypatch.setenv("SPEECH_REGION", "westus3")
-
-        # Act
-        exit_code = _run(tmp_path)
-
-        # Assert
-        assert exit_code == 2
-        assert fake_speech.synthesis_calls == []
 
     def test_given_token_refresh_failure_when_synthesizing_then_stale_config_reused(
         self, tmp_path, monkeypatch, fake_speech, install_credential

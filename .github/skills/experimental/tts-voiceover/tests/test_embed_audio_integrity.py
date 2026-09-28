@@ -53,6 +53,19 @@ class TestSlideMapping:
         assert exit_code == 2
         assert not output.exists()
 
+    def test_given_missing_wav_when_embed_then_slide_skipped(self, tmp_path):
+        # Arrange
+        deck = make_deck(tmp_path / "deck.pptx", slide_count=2)
+        make_wav(tmp_path / "audio" / "slide-002.wav")
+        output = tmp_path / "narrated.pptx"
+
+        # Act
+        exit_code = _run(deck, tmp_path / "audio", output)
+
+        # Assert
+        assert exit_code == 0
+        assert _shape_counts(output) == [0, 1]
+
     def test_given_wav_beyond_deck_length_when_embed_then_warns_and_ignores_it(
         self, tmp_path, caplog
     ):
@@ -70,19 +83,6 @@ class TestSlideMapping:
         assert exit_code == 0
         assert "slide-005.wav" in caplog.text
         assert _shape_counts(output) == [1, 0]
-
-    def test_given_missing_wav_when_embed_then_slide_skipped(self, tmp_path):
-        # Arrange
-        deck = make_deck(tmp_path / "deck.pptx", slide_count=2)
-        make_wav(tmp_path / "audio" / "slide-002.wav")
-        output = tmp_path / "narrated.pptx"
-
-        # Act
-        exit_code = _run(deck, tmp_path / "audio", output)
-
-        # Assert
-        assert exit_code == 0
-        assert _shape_counts(output) == [0, 1]
 
 
 class TestWavValidation:
@@ -134,6 +134,33 @@ class TestDeckMutation:
 class TestOutputHandling:
     """Output path, save failure, and empty-embedding behavior."""
 
+    def test_given_existing_output_deck_when_embed_then_overwritten(self, tmp_path):
+        # Arrange
+        deck = make_deck(tmp_path / "deck.pptx")
+        make_wav(tmp_path / "audio" / "slide-001.wav")
+        output = tmp_path / "narrated.pptx"
+        output.write_bytes(b"previous")
+
+        # Act
+        exit_code = _run(deck, tmp_path / "audio", output)
+
+        # Assert
+        assert exit_code == 0
+        assert _shape_counts(output) == [1, 0]
+
+    def test_given_no_wavs_when_embed_then_exits_1_without_output(self, tmp_path):
+        # Arrange
+        deck = make_deck(tmp_path / "deck.pptx")
+        (tmp_path / "audio").mkdir()
+        output = tmp_path / "narrated.pptx"
+
+        # Act
+        exit_code = _run(deck, tmp_path / "audio", output)
+
+        # Assert
+        assert exit_code == 1
+        assert not output.exists()
+
     def test_given_output_equal_to_input_when_embed_then_exits_2_and_input_unchanged(
         self, tmp_path
     ):
@@ -157,33 +184,6 @@ class TestOutputHandling:
         mocker.patch(
             "pptx.presentation.Presentation.save", side_effect=OSError("disk full")
         )
-
-        # Act
-        exit_code = _run(deck, tmp_path / "audio", output)
-
-        # Assert
-        assert exit_code == 1
-        assert not output.exists()
-
-    def test_given_existing_output_deck_when_embed_then_overwritten(self, tmp_path):
-        # Arrange
-        deck = make_deck(tmp_path / "deck.pptx")
-        make_wav(tmp_path / "audio" / "slide-001.wav")
-        output = tmp_path / "narrated.pptx"
-        output.write_bytes(b"previous")
-
-        # Act
-        exit_code = _run(deck, tmp_path / "audio", output)
-
-        # Assert
-        assert exit_code == 0
-        assert _shape_counts(output) == [1, 0]
-
-    def test_given_no_wavs_when_embed_then_exits_1_without_output(self, tmp_path):
-        # Arrange
-        deck = make_deck(tmp_path / "deck.pptx")
-        (tmp_path / "audio").mkdir()
-        output = tmp_path / "narrated.pptx"
 
         # Act
         exit_code = _run(deck, tmp_path / "audio", output)

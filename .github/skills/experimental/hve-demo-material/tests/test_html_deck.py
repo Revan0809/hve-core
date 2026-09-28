@@ -12,6 +12,8 @@ from html_deck import (
     BUILD_SUMMARY,
     COPIED_FILES,
     build_deck_source,
+    github_blob_base,
+    level_sources,
     main,
     slide_markup,
 )
@@ -37,6 +39,8 @@ _PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
     b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
 )
+_COMMIT = "0123456789abcdef0123456789abcdef01234567"
+_BASE = f"https://github.com/contoso/widgets/blob/{_COMMIT}/"
 
 
 @pytest.fixture
@@ -251,7 +255,7 @@ class TestBuildDeckSource:
         _slide(level_dir, 1, {"title": "Welcome & hello", "speaker_notes": "Hi."})
         _slide(level_dir, 2, {"title": "Next", "section": "Close"})
         deck = build_deck_source(
-            "L100", level_dir, template, tmp_path / "slides" / "hve-demo-L100"
+            "L100", level_dir, template, tmp_path / "slides" / "hve-demo-L100", _BASE
         )
 
         for name in COPIED_FILES:
@@ -267,15 +271,36 @@ class TestBuildDeckSource:
         assert config["title"] == "HVE Core: Orientation"
         assert config["description"] == "First use"
         content = (deck / "content.js").read_text(encoding="utf-8")
-        assert (
-            "https://github.com/microsoft/hve-core/blob/main/docs/README.md" in content
-        )
+        assert f"{_BASE}docs/README.md" in content
+        assert "microsoft/hve-core" not in content
         assert "<" not in content.split("\n", 2)[2]
         css = (deck / "components.css").read_text(encoding="utf-8")
         assert css.startswith(".panel { color: red; }")
         assert ".slide-body" in css
         summary = json.loads((deck / BUILD_SUMMARY).read_text(encoding="utf-8"))
-        assert summary == {"slides": 2, "missing_images": []}
+        assert summary["slides"] == 2 and summary["missing_images"] == []
+        assert summary["sources"] > 0
+
+    def test_given_no_link_base_when_built_then_no_citations(self, tmp_path, template):
+        level_dir = tmp_path / "L100"
+        _slide(level_dir, 1, {"title": "One"})
+        deck = build_deck_source("L100", level_dir, template, tmp_path / "out")
+        assert 'data-sources=""' in (deck / "index.html").read_text(encoding="utf-8")
+        assert "sources: {}" in (deck / "content.js").read_text(encoding="utf-8")
+        summary = json.loads((deck / BUILD_SUMMARY).read_text(encoding="utf-8"))
+        assert summary["sources"] == 0
+
+    @pytest.mark.parametrize(
+        "repo_url", ["http://github.com/o/r/blob/x/", "https://github.com/o/r"]
+    )
+    def test_given_invalid_link_base_when_built_then_raises(
+        self, tmp_path, template, repo_url
+    ):
+        _slide(tmp_path / "L100", 1, {"title": "One"})
+        with pytest.raises(CheckError, match="repo-url"):
+            build_deck_source(
+                "L100", tmp_path / "L100", template, tmp_path / "out", repo_url
+            )
 
     def test_given_incomplete_template_when_built_then_raises(self, tmp_path, template):
         (template / "bundle.mjs").unlink()
@@ -301,6 +326,61 @@ class TestBuildDeckSource:
         )
         assert code == 1
         assert "no slides" in capsys.readouterr().err
+
+
+class TestCitationSources:
+    """Citation link base and the level's source list."""
+
+    @pytest.mark.parametrize(
+        "remote",
+        [
+            "https://github.com/contoso/widgets.git",
+            "https://x-access-token:secret@github.com/contoso/widgets.git",
+            "git@github.com:contoso/widgets.git",
+            "ssh://git@github.com/contoso/widgets",
+        ],
+    )
+    def test_given_github_remote_when_resolved_then_commit_blob_base(self, remote):
+        assert github_blob_base(remote, _COMMIT) == _BASE
+
+    @pytest.mark.parametrize(
+        ("remote", "commit"),
+        [
+            ("https://dev.azure.com/contoso/_git/widgets", _COMMIT),
+            ("https://github.com/contoso/widgets.git", "main"),
+            ("https://github.com/contoso/widgets/extra.git", _COMMIT),
+        ],
+    )
+    def test_given_unsupported_remote_or_ref_when_resolved_then_none(
+        self, remote, commit
+    ):
+        assert github_blob_base(remote, commit) is None
+
+    @pytest.mark.parametrize("name", ["output/manifest.yml", "manifest.yml"])
+    def test_given_manifest_sources_when_listed_then_used_in_order(
+        self, tmp_path, name
+    ):
+        manifest = tmp_path / name
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(
+            yaml.safe_dump(
+                {
+                    "sources": [
+                        {"path": "guide/intro.md"},
+                        {"path": "../outside.md"},
+                        {"path": "/etc/passwd"},
+                        {"path": "guide/intro.md"},
+                        {"path": "src/app.py"},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert level_sources("L100", tmp_path) == ["guide/intro.md", "src/app.py"]
+
+    def test_given_no_manifest_when_listed_then_pinned_sources(self, tmp_path):
+        sources = level_sources("L100", tmp_path)
+        assert sources and "docs/README.md" in sources
 
 
 class TestCheckHtmlDeckScript:

@@ -177,7 +177,8 @@ build_html_deck() {
     --level "${LEVEL}" \
     --level-dir "${LEVEL_DIR}" \
     --template "${HTML_DECK_TEMPLATE}" \
-    --deck-dir "${deck_dir}"
+    --deck-dir "${deck_dir}" \
+    --workspace "${WORKSPACE}"
   npm ci --prefix "${deck_dir}" --ignore-scripts --no-audit --no-fund --silent
   # bundle.mjs only runs when invoked by its real path, not through a symlink.
   deck_dir="$(cd "${deck_dir}" && pwd -P)"

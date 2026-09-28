@@ -1,6 +1,6 @@
 ---
 name: hve-demo-material
-description: "Create levelled demo decks and narrated MP4s for HVE Core or any named repository topic. Use when training or demo material is needed for L100 through L400 audiences."
+description: "Create levelled demo decks and narrated MP4s for any repository topic, with HVE Core as the default in the hve-core repository. Use when training or demo material is needed for L100 through L400 audiences."
 ---
 
 # HVE Demo Material
@@ -18,9 +18,8 @@ capture fidelity, and criterion templates, while topic sets the source set.
 1. Read `references/curriculum.md` to select the requested levels, resolve the
    topic's source set, and instantiate the level's criterion templates.
 2. Resolve the source set. `hve-core-general` uses its pinned register. Any
-   other topic resolves dynamically through the `rpi-research` skill across
-   `docs/`, `.github/skills/`, and `.github/agents/`, autonomously and without a
-   human approval gate.
+   other topic resolves dynamically through the `rpi-research` skill across the
+   `source_roots`, autonomously and without a human approval gate.
 3. Create the level working directory described in the output contract and
    collect source evidence before drafting content.
 4. Copy `templates/style.yaml` to the level's `content/global/style.yaml` and
@@ -45,7 +44,13 @@ capture fidelity, and criterion templates, while topic sets the source set.
 ## Inputs
 
 * Requested levels from `L100`, `L200`, `L300`, and `L400`
-* `topic`, defaulting to `hve-core-general`
+* `topic`, defaulting to `hve-core-general` only when its pinned sources exist
+  in the workspace, as they do in the hve-core repository. Elsewhere `topic` is
+  required; ask for it under `manual` and `partial`, and set the level
+  `Deferred` under `full`.
+* `source_roots`, the folders a dynamic topic is researched in, defaulting to
+  those of `docs/`, `.github/skills/`, and `.github/agents/` that exist, or the
+  repository root when none do
 * `autonomy` from `full`, `partial`, or `manual`, defaulting to `partial`
 * `capture` from `live` or `deck-export`, defaulting to `live` for L300 and L400
   and to `deck-export` for L100 and L200
@@ -161,7 +166,9 @@ starter's bundler writes one offline HTML file to
 headless Chromium with the network disabled. The starter is not part of the
 plugin, so outside the hve-core repository the step is skipped and `T-10` is not
 scored. Pass `--html-deck-template` to make the deck required, or
-`--no-html-deck` to skip it.
+`--no-html-deck` to skip it. The deck cites the level manifest's resolved
+sources, linked to the workspace's GitHub `origin` at the checked-out commit.
+When the workspace has no GitHub remote the deck is built without citations.
 
 ```bash
 scripts/render-level.sh --level L100 --level-dir <level-dir> --workspace <repo> --narration piper

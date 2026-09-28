@@ -1,9 +1,9 @@
 ---
 title: HVE Demo Material Builder
-description: "Orchestrates HVE Core training decks and narrated MP4 demos for L100 through L400 on any named topic, attended or unattended. Use when producing levelled repository demo material."
+description: "Orchestrates levelled L100-L400 training decks and narrated MP4 demos for any repository topic, attended or unattended, with HVE Core as the default in the hve-core repository. Use when producing levelled repository demo material."
 sidebar_position: 2
 author: Microsoft
-ms.date: 2026-09-07
+ms.date: 2026-09-28
 ms.topic: reference
 keywords:
   - agent
@@ -23,7 +23,7 @@ keywords:
 ## What it does
 
 <!-- BEGIN AUTO-GENERATED: overview -->
-Orchestrates HVE Core training decks and narrated MP4 demos for L100 through L400 on any named topic, attended or unattended. Use when producing levelled repository demo material.
+Orchestrates levelled L100-L400 training decks and narrated MP4 demos for any repository topic, attended or unattended, with HVE Core as the default in the hve-core repository. Use when producing levelled repository demo material.
 <!-- END AUTO-GENERATED: overview -->
 
 ## When to use it

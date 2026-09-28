@@ -17,10 +17,10 @@ level and topic.
 Level and topic are orthogonal. Requesting L200 says how deep and how long the
 material goes; it never says what the material is about.
 
-| Axis  | Owns                                                                                        | Selected by                                   |
-|-------|---------------------------------------------------------------------------------------------|-----------------------------------------------|
-| Level | Audience, target duration, capture fidelity, and the generic acceptance-criterion templates | `L100`, `L200`, `L300`, or `L400`             |
-| Topic | The source set and the topic-specific instantiation of each criterion template              | The `topic` input, default `hve-core-general` |
+| Axis  | Owns                                                                                        | Selected by                             |
+|-------|---------------------------------------------------------------------------------------------|-----------------------------------------|
+| Level | Audience, target duration, capture fidelity, and the generic acceptance-criterion templates | `L100`, `L200`, `L300`, or `L400`       |
+| Topic | The source set and the topic-specific instantiation of each criterion template              | The `topic` input; see Topic Resolution |
 
 ## Level Contracts
 
@@ -113,15 +113,21 @@ Apply these rules to the profile:
 
 | Topic                                                                | Resolution | Source set                                                                                |
 |----------------------------------------------------------------------|------------|-------------------------------------------------------------------------------------------|
-| `hve-core-general` (default)                                         | `pinned`   | The pinned register below, used exactly as written so the default run stays deterministic |
+| `hve-core-general` (default in the hve-core repository)              | `pinned`   | The pinned register below, used exactly as written so the default run stays deterministic |
 | Any other named topic, for example Design Thinking, security, or RPI | `dynamic`  | Resolved at run time through the `rpi-research` skill                                     |
+
+`hve-core-general` is the default only when every pinned source for the
+requested level exists in the workspace. In any other repository the caller
+names the topic. Without one, ask for it under `manual` and `partial`, and set
+the level `Deferred` under `full` with the missing topic named.
 
 Resolve a dynamic topic with these rules:
 
 * Activate the `rpi-research` skill. It is this repository's sole sanctioned
   route for open-ended codebase exploration, so do not scan directly and do not
-  create a local research worker. Search `docs/`, `.github/skills/`, and
-  `.github/agents/`.
+  create a local research worker. Search the `source_roots` input. Its default
+  is whichever of `docs/`, `.github/skills/`, and `.github/agents/` exist in the
+  workspace, or the repository root when none of them do.
 * Resolve autonomously. Source-set resolution is never gated on human approval
   in any autonomy mode, so an unattended run can complete it.
 * Record every resolved path, and `pinned` or `dynamic` as the resolution mode,

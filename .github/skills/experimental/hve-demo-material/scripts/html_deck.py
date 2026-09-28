@@ -4,17 +4,23 @@
 """Generate an HVE Slides deck source folder from a level's slide content.
 
 Maps each ``content/slide-*/content.yaml`` to semantic slide markup with its
-speaker notes, lists the level's pinned sources for the Sources dialog, and
+speaker notes, lists the level's resolved sources for the Sources dialog, and
 embeds images as CSS data URLs, because the single-file bundler accepts no
 resource markup. The starter's build, bundle, theme, and runtime files are
 copied unchanged, so ``npm ci`` and ``node bundle.mjs`` in the deck folder
 produce one offline HTML file from the same content as the video and deck.
 
+Sources come from the level manifest's source register, falling back to the
+curriculum's pinned sources. Citation links point at the workspace repository:
+its GitHub ``origin`` remote at the checked-out commit, or ``--repo-url``. When
+neither yields a link base, the deck is built without citations.
+
 Usage::
 
     python html_deck.py --level L100 --level-dir DIR \
         --template .github/skills/hve-slides/templates/deck \
-        --deck-dir DIR/html-deck/slides/hve-demo-L100
+        --deck-dir DIR/html-deck/slides/hve-demo-L100 [--workspace REPO] \
+        [--repo-url https://github.com/OWNER/REPO/blob/REF/]
 """
 
 from __future__ import annotations
@@ -23,10 +29,14 @@ import argparse
 import base64
 import html
 import json
+import re
 import shutil
+import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 
+import yaml
 from render_checks import (
     EXIT_FAILURE,
     EXIT_SUCCESS,
@@ -52,8 +62,13 @@ COPIED_FILES = (
     ".npmrc",
     "LICENSE",
 )
-REPO_URL = "https://github.com/microsoft/hve-core/blob/main/"
 BUILD_SUMMARY = "demo-material-build.json"
+MANIFEST_PATHS = ("output/manifest.yml", "manifest.yml")
+_GITHUB_REMOTE = re.compile(
+    r"^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)"
+    r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$"
+)
+_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
 # Slide geometry is in inches on a 13.333 by 7.5 canvas.
@@ -368,29 +383,111 @@ def _json_script(value) -> str:
     return json.dumps(value, ensure_ascii=True).replace("<", "\\u003c")
 
 
+def _git(workspace: Path, *args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(workspace), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def github_blob_base(remote: str, commit: str) -> str | None:
+    """Return ``https://github.com/OWNER/REPO/blob/COMMIT/`` for a GitHub remote.
+
+    Only the owner and repository name are kept, so credentials embedded in the
+    remote URL never reach the deck. Returns ``None`` for other hosts.
+    """
+    match = _GITHUB_REMOTE.match(remote.strip())
+    if not match or not _COMMIT.match(commit):
+        return None
+    owner, repo = match.groups()
+    return f"https://github.com/{owner}/{repo}/blob/{commit}/"
+
+
+def workspace_blob_base(workspace: Path) -> str | None:
+    """Return the citation link base for the repository checked out at ``workspace``."""
+    remote = _git(workspace, "remote", "get-url", "origin")
+    commit = _git(workspace, "rev-parse", "HEAD")
+    return github_blob_base(remote, commit) if remote and commit else None
+
+
+def _safe_source_path(path: object) -> str | None:
+    text = str(path).strip() if isinstance(path, str) else ""
+    parts = text.split("/")
+    if not text or text.startswith("/") or ":" in text or "\\" in text:
+        return None
+    if any(part in ("", ".", "..") for part in parts):
+        return None
+    return text
+
+
+def level_sources(level: str, level_dir: Path) -> list[str]:
+    """Return the level's resolved source paths.
+
+    Reads the manifest's source register when one exists, so a dynamic topic
+    cites what it actually used, and falls back to the curriculum's pinned
+    sources for the level. Paths that are not plain relative paths are dropped.
+    """
+    for name in MANIFEST_PATHS:
+        manifest = level_dir / name
+        if not manifest.is_file():
+            continue
+        data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+        entries = data.get("sources") if isinstance(data, dict) else None
+        paths = [
+            _safe_source_path(entry.get("path"))
+            for entry in entries or []
+            if isinstance(entry, dict)
+        ]
+        resolved = list(dict.fromkeys(path for path in paths if path))
+        if resolved:
+            return resolved
+    return list(load_curriculum().get(level, {}).get("sources", []))
+
+
 def build_deck_source(
-    level: str, level_dir: Path, template: Path, deck_dir: Path
+    level: str,
+    level_dir: Path,
+    template: Path,
+    deck_dir: Path,
+    repo_url: str | None = None,
 ) -> Path:
-    """Write the deck source folder and return ``deck_dir``."""
+    """Write the deck source folder and return ``deck_dir``.
+
+    ``repo_url`` is the citation link base; without it the deck has no citations.
+    """
+    if repo_url is not None and not (
+        repo_url.startswith("https://") and repo_url.endswith("/")
+    ):
+        raise CheckError("--repo-url must be an https URL ending in '/'")
     for name in (*COPIED_FILES, "index.html", "components.css"):
         if not (template / name).is_file():
             raise CheckError(f"HVE Slides template file missing: {template / name}")
     slides = load_slides(level_dir / "content")
     if not slides:
         raise CheckError(f"no slides under {level_dir / 'content'}")
-    curriculum = load_curriculum()
     metadata = style_metadata(level_dir)
     title = str(metadata.get("title") or f"HVE Core {level}")
     description = str(metadata.get("subject") or f"HVE Core {level} demo material")
 
-    sources = {
-        f"source-{i}": {
-            "title": path,
-            "url": REPO_URL + path,
-            "note": f"Pinned {level} source document.",
+    sources = (
+        {
+            f"source-{i}": {
+                "title": path,
+                "url": repo_url + urllib.parse.quote(path),
+                "note": f"{level} source document.",
+            }
+            for i, path in enumerate(level_sources(level, level_dir), 1)
         }
-        for i, path in enumerate(curriculum.get(level, {}).get("sources", []), 1)
-    }
+        if repo_url
+        else {}
+    )
     source_ids = ",".join(sources)
 
     css: list[str] = []
@@ -454,7 +551,7 @@ def build_deck_source(
                 "title": title,
                 "description": description,
                 "sourceNote": (
-                    f"Built from the pinned {level} source documents. The same "
+                    f"Built from the {level} source documents. The same "
                     "slide content drives the narrated video and the PowerPoint deck."
                 ),
             },
@@ -464,7 +561,11 @@ def build_deck_source(
         encoding="utf-8",
     )
     (deck_dir / BUILD_SUMMARY).write_text(
-        json.dumps({"slides": len(slides), "missing_images": missing}, indent=2) + "\n",
+        json.dumps(
+            {"slides": len(slides), "missing_images": missing, "sources": len(sources)},
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return deck_dir
@@ -476,13 +577,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--level-dir", type=Path, required=True)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--deck-dir", type=Path, required=True)
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        help="Repository whose GitHub origin and commit the citations link to",
+    )
+    parser.add_argument(
+        "--repo-url",
+        help="Citation link base, overriding --workspace, for example "
+        "https://github.com/OWNER/REPO/blob/main/",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    repo_url = args.repo_url or (
+        workspace_blob_base(args.workspace) if args.workspace else None
+    )
+    if repo_url is None:
+        print(
+            "No citation link base; building the deck without citations.",
+            file=sys.stderr,
+        )
     try:
-        build_deck_source(args.level, args.level_dir, args.template, args.deck_dir)
+        build_deck_source(
+            args.level, args.level_dir, args.template, args.deck_dir, repo_url
+        )
     except (CheckError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return EXIT_FAILURE

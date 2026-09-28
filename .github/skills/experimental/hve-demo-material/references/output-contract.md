@@ -89,7 +89,8 @@ angle brackets are placeholders, not literal output.
 ```yaml
 schema_version: 4
 level: L100
-topic: <topic name, default hve-core-general>
+topic: <topic name; hve-core-general is the default only in the hve-core repository>
+source_roots: <researched folders | not-applicable> # not-applicable for a pinned topic
 autonomy: <full | partial | manual>
 state: <Complete | Deferred | Blocked> # See State Rules; the Complete condition depends on autonomy
 audience: <audience>

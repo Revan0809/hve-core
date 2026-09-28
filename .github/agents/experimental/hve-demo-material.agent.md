@@ -1,6 +1,6 @@
 ---
 name: HVE Demo Material Builder
-description: "Orchestrates HVE Core training decks and narrated MP4 demos for L100 through L400 on any named topic, attended or unattended. Use when producing levelled repository demo material."
+description: "Orchestrates levelled L100-L400 training decks and narrated MP4 demos for any repository topic, attended or unattended, with HVE Core as the default in the hve-core repository. Use when producing levelled repository demo material."
 agents:
   - PowerPoint Subagent
 ---
@@ -22,7 +22,10 @@ the engine in force, and a complete output manifest.
 ## Inputs
 
 * Requested levels from `L100`, `L200`, `L300`, and `L400`
-* `topic`, defaulting to `hve-core-general`
+* `topic`, defaulting to `hve-core-general` only where the skill's curriculum
+  allows it; elsewhere the caller names the topic
+* `source_roots`, the folders a dynamic topic is researched in, with the
+  default the skill's curriculum defines
 * `autonomy` from `full`, `partial`, or `manual`, defaulting to `partial`
 * `capture` from `live` or `deck-export`, defaulting to `live` for L300 and L400
   and to `deck-export` for L100 and L200
@@ -88,7 +91,7 @@ through a human-configured pipeline outside the agent.
 * For `topic: hve-core-general`, read the pinned curriculum sources directly.
   They are already-known target paths, so bounded reading stays local to this
   workflow. For any other topic, activate the `rpi-research` skill to resolve
-  the source set across `docs/`, `.github/skills/`, and `.github/agents/`, and
+  the source set across the `source_roots`, and
   do not create a local research worker. Activate `rpi-research` as well for any
   open-ended or decision-critical research a lesson needs beyond its resolved
   sources.
@@ -178,7 +181,7 @@ through a human-configured pipeline outside the agent.
 
 1. Resolve the topic's source set. For `hve-core-general`, read its pinned
    sources. For any other topic, activate the `rpi-research` skill and search
-   `docs/`, `.github/skills/`, and `.github/agents/`. Resolve autonomously in
+   the `source_roots`. Resolve autonomously in
    every autonomy mode.
 2. Write `research/source-register.md` mapping each resolved source to the slide
    claims it supports, and record `pinned` or `dynamic` as the resolution mode

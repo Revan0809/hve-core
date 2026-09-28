@@ -18,8 +18,9 @@ This skill reads `content.yaml` files from a PowerPoint skill content directory,
 
 * **Azure Speech resource** — Free tier provides 500K characters per month.
 * **Authentication** — Key-based (`SPEECH_KEY`) or Microsoft Entra ID (`SPEECH_RESOURCE_ID`).
+* **Region** — `SPEECH_REGION` is required for synthesis and has no default. Dry-run mode does not need it.
 * **Python 3.11+** with `uv` for virtual environment management.
-* **Data handling note** — Speaker-notes content is transmitted to the configured `SPEECH_REGION` for synthesis. Operators must pin an approved region and avoid sending regulated or confidential narration.
+* **Data handling note** — Speaker-notes content is transmitted to the configured `SPEECH_REGION` for synthesis. Operators must set an approved region and avoid sending regulated or confidential narration.
 
 ### Key-Based Auth
 
@@ -91,6 +92,8 @@ XML so PowerPoint recognizes the audio for video export via
 | `--audio-dir`      | path | `voice-over`      | Directory with slide-NNN.wav          |
 | `--output`         | path | `*-narrated.pptx` | Output PPTX file path                 |
 | `--verbose` / `-v` | flag | `false`           | Enable verbose (DEBUG) logging output |
+
+Each WAV file maps to a slide by the number in its name, so `slide-1.wav` and `slide-001.wav` both map to slide 1. When two files map to the same slide, embedding stops with an error and writes no output. WAV files numbered past the last slide are ignored with a warning. An unreadable WAV file is reported, its slide is left unchanged, and the remaining slides are still embedded.
 
 ## Script Reference
 
@@ -184,6 +187,8 @@ Each `content.yaml` should contain a `speaker_notes:` field with the narration t
 | Issue                                                | Solution                                                                                                                                                                  |
 |:-----------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `Set SPEECH_KEY ... or SPEECH_RESOURCE_ID`           | Export `SPEECH_KEY` (key auth) or `SPEECH_RESOURCE_ID` (Entra ID) with `SPEECH_REGION`.                                                                                   |
+| `SPEECH_REGION must be set`                          | Export `SPEECH_REGION` with an approved Azure region. Synthesis has no default region.                                                                                    |
+| `Multiple WAV files map to slide N`                  | Remove the duplicate WAV files (for example `slide-1.wav` beside `slide-001.wav`) and rerun `embed_audio.py`.                                                             |
 | 401 with Entra ID auth                               | Verify custom domain on the Speech resource and `Cognitive Services Speech User` role. RBAC propagation takes up to 5 minutes.                                            |
 | Empty WAV files or skipped slides                    | Verify `speaker_notes:` is present and non-empty in `content.yaml`.                                                                                                       |
 | Mispronounced acronyms                               | Add entries to `acronyms.yaml` with phonetic aliases.                                                                                                                     |

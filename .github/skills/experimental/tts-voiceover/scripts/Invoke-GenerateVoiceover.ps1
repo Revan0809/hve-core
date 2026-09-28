@@ -33,6 +33,9 @@
 .PARAMETER Lexicon
     Path to custom acronyms.yaml lexicon file.
 
+.PARAMETER CollapseNewlines
+    Collapse newlines and runs of whitespace in speaker notes into single spaces before synthesis.
+
 .PARAMETER SkipVenvSetup
     Skip virtual environment creation and dependency installation.
 
@@ -71,6 +74,9 @@ param(
     [string]$Lexicon,
 
     [Parameter(Mandatory = $false)]
+    [switch]$CollapseNewlines,
+
+    [Parameter(Mandatory = $false)]
     [switch]$SkipVenvSetup
 )
 
@@ -106,6 +112,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     if ($ContentDir) { $PythonArgs += '--content-dir', $ContentDir }
     if ($OutputDir) { $PythonArgs += '--output-dir', $OutputDir }
     if ($Lexicon) { $PythonArgs += '--lexicon', $Lexicon }
+    if ($CollapseNewlines) { $PythonArgs += '--collapse-newlines' }
     if ($VerbosePreference -ne 'SilentlyContinue') { $PythonArgs += '--verbose' }
 
     & $python $script @PythonArgs

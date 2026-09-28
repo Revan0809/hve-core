@@ -43,6 +43,10 @@
     Use single-pass mode instead of two-pass palette optimization.
     Faster processing but lower quality output.
 
+.PARAMETER TimeoutSeconds
+    Maximum wall-clock seconds for each ffprobe or ffmpeg invocation. Valid range: 1-86400. Default: 600.
+    The output path must differ from the input path; a .gif input therefore needs an explicit -OutputPath.
+
 .EXAMPLE
     ./convert.ps1 -InputPath video.mp4
     Converts video.mp4 to video.gif using default settings.
@@ -194,10 +198,16 @@ function Test-HDRContent {
     <#
     .SYNOPSIS
         Detect if video contains HDR content using ffprobe.
+    .DESCRIPTION
+        Runs ffprobe under the same wall-clock bound as the conversion. A probe that
+        times out, fails, or cannot start is treated as SDR content.
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [string]$FilePath
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $false)]
+        [int]$TimeoutSeconds = 600
     )
 
     $ffprobePath = Get-Command -Name 'ffprobe' -ErrorAction SilentlyContinue
@@ -205,18 +215,24 @@ function Test-HDRContent {
         return $false
     }
 
+    $probeArguments = @(
+        '-v', 'error'
+        '-select_streams', 'v:0'
+        '-show_entries', 'stream=color_primaries,color_transfer'
+        '-of', 'csv=p=0'
+        $FilePath
+    )
+
     try {
-        $colorInfo = & ffprobe -v error -select_streams v:0 `
-            -show_entries stream=color_primaries,color_transfer `
-            -of csv=p=0 $FilePath 2>$null
+        $probe = Invoke-BoundedProcess -FilePath 'ffprobe' -Arguments $probeArguments -TimeoutSeconds $TimeoutSeconds -CaptureOutput
 
         # Check for HDR indicators: bt2020 primaries or smpte2084 transfer
-        if ($colorInfo -match 'bt2020|smpte2084') {
+        if ($probe.ExitCode -eq 0 -and $probe.StdOut -match 'bt2020|smpte2084') {
             return $true
         }
     }
     catch {
-        Write-Verbose "ffprobe failed, assuming SDR content: $_"
+        Write-Warning "HDR detection failed; treating input as SDR: $($_.Exception.Message)"
     }
 
     return $false
@@ -236,15 +252,75 @@ function Format-FileSize {
     }
 }
 
+function Invoke-BoundedProcess {
+    <#
+    .SYNOPSIS
+        Runs an executable with the given argument list under a wall-clock timeout.
+    .DESCRIPTION
+        Uses the .NET process API so each argument (including the filtergraph) is
+        passed verbatim and is never re-parsed by a shell, and so the process tree can
+        be terminated if it exceeds TimeoutSeconds, preventing a hostile or
+        pathological input from hanging the conversion indefinitely.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory = $false)]
+        [object[]]$Arguments = @(),
+
+        [Parameter(Mandatory = $false)]
+        [int]$TimeoutSeconds = 600,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$CaptureOutput
+    )
+
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $FilePath
+    foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add([string]$arg) }
+    $psi.UseShellExecute = $false
+    if ($CaptureOutput) {
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+    }
+
+    $process = [System.Diagnostics.Process]::Start($psi)
+    try {
+        $stdoutTask = $null
+        if ($CaptureOutput) {
+            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+            $null = $process.StandardError.ReadToEndAsync()
+        }
+
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            try {
+                $process.Kill($true)
+                $process.WaitForExit()
+            }
+            catch {
+                Write-Verbose "Failed to terminate timed-out process: $_"
+            }
+            throw "$FilePath timed out after $TimeoutSeconds seconds."
+        }
+
+        # The parameterless overload waits for redirected streams to drain.
+        $process.WaitForExit()
+
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            StdOut   = if ($stdoutTask) { $stdoutTask.Result } else { $null }
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 function Invoke-FFmpegProcess {
     <#
     .SYNOPSIS
         Runs ffmpeg with the given argument list under a wall-clock timeout.
-    .DESCRIPTION
-        Uses the .NET process API so each argument (including the filtergraph) is
-        passed verbatim and is never re-parsed by a shell, and so the process can
-        be terminated if it exceeds TimeoutSeconds, preventing a hostile or
-        pathological input from hanging the conversion indefinitely.
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -254,17 +330,8 @@ function Invoke-FFmpegProcess {
         [int]$TimeoutSeconds = 600
     )
 
-    $psi = [System.Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = 'ffmpeg'
-    foreach ($arg in $Arguments) { [void]$psi.ArgumentList.Add([string]$arg) }
-    $psi.UseShellExecute = $false
-
-    $process = [System.Diagnostics.Process]::Start($psi)
-    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-        try { $process.Kill($true) } catch { Write-Verbose "Failed to terminate timed-out ffmpeg process: $_" }
-        throw "FFmpeg timed out after $TimeoutSeconds seconds."
-    }
-    return $process.ExitCode -eq 0
+    $result = Invoke-BoundedProcess -FilePath 'ffmpeg' -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds
+    return $result.ExitCode -eq 0
 }
 
 function Invoke-SinglePassConversion {
@@ -408,6 +475,10 @@ function Invoke-VideoConversion {
         [double]$Duration,
 
         [Parameter(Mandatory = $false)]
+        [ValidateRange(1, 86400)]
+        [int]$TimeoutSeconds = 600,
+
+        [Parameter(Mandatory = $false)]
         [switch]$SkipPalette
     )
 
@@ -446,8 +517,15 @@ function Invoke-VideoConversion {
         $OutputPath = Join-Path -Path $inputItem.DirectoryName -ChildPath "$($inputItem.BaseName).gif"
     }
 
+    # Refuse to overwrite the source, for example the default output of a .gif input.
+    $resolvedOutput = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
+    $pathComparison = if ($IsLinux) { [System.StringComparison]::Ordinal } else { [System.StringComparison]::OrdinalIgnoreCase }
+    if ([string]::Equals([System.IO.Path]::GetFullPath($resolvedOutput), [System.IO.Path]::GetFullPath($resolvedInput), $pathComparison)) {
+        throw "Output path is the same as the input path: $resolvedInput. Specify a different -OutputPath."
+    }
+
     # Detect HDR content
-    $isHDR = Test-HDRContent -FilePath $resolvedInput
+    $isHDR = Test-HDRContent -FilePath $resolvedInput -TimeoutSeconds $TimeoutSeconds
 
     # Build base filter chain
     $baseFilter = "fps=$Fps,scale=${Width}:-1:flags=lanczos"

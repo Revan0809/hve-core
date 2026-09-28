@@ -5,11 +5,16 @@
 import json
 from pathlib import Path
 
-import check_html_deck
-import html_deck
 import pytest
 import yaml
-from html_deck import build_deck_source, main, slide_markup
+from check_html_deck import main as check_deck_main
+from html_deck import (
+    BUILD_SUMMARY,
+    COPIED_FILES,
+    build_deck_source,
+    main,
+    slide_markup,
+)
 from render_checks import CheckError, build_transcript_page
 from render_checks import check_html_deck as t10
 
@@ -38,7 +43,7 @@ _PNG = (
 def template(tmp_path: Path) -> Path:
     root = tmp_path / "template"
     root.mkdir()
-    for name in html_deck.COPIED_FILES:
+    for name in COPIED_FILES:
         (root / name).write_text(f"/* {name} */\n", encoding="utf-8")
     (root / "components.css").write_text(".panel { color: red; }\n", encoding="utf-8")
     (root / "index.html").write_text(_TEMPLATE_INDEX, encoding="utf-8")
@@ -249,7 +254,7 @@ class TestBuildDeckSource:
             "L100", level_dir, template, tmp_path / "slides" / "hve-demo-L100"
         )
 
-        for name in html_deck.COPIED_FILES:
+        for name in COPIED_FILES:
             assert (deck / name).read_text(encoding="utf-8") == f"/* {name} */\n"
         page = (deck / "index.html").read_text(encoding="utf-8")
         assert "starter" not in page
@@ -269,9 +274,7 @@ class TestBuildDeckSource:
         css = (deck / "components.css").read_text(encoding="utf-8")
         assert css.startswith(".panel { color: red; }")
         assert ".slide-body" in css
-        summary = json.loads(
-            (deck / html_deck.BUILD_SUMMARY).read_text(encoding="utf-8")
-        )
+        summary = json.loads((deck / BUILD_SUMMARY).read_text(encoding="utf-8"))
         assert summary == {"slides": 2, "missing_images": []}
 
     def test_given_incomplete_template_when_built_then_raises(self, tmp_path, template):
@@ -305,7 +308,7 @@ class TestCheckHtmlDeckScript:
 
     def test_given_missing_deck_when_run_then_fail_json(self, tmp_path):
         output = tmp_path / "check.json"
-        code = check_html_deck.main(
+        code = check_deck_main(
             ["--deck", str(tmp_path / "none.html"), "--output", str(output)]
         )
         assert code == 1

@@ -9,8 +9,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
-import render_checks
 from render_checks import (
+    LEVELS,
     STYLE_TEMPLATE,
     CheckError,
     build_captions,
@@ -26,8 +26,11 @@ from render_checks import (
     level_touched,
     load_curriculum,
     main,
+    normalized_text,
     on_screen_text,
     parse_curriculum,
+    parse_webvtt,
+    style_metadata,
 )
 
 _MINI_CURRICULUM = """# Curriculum
@@ -212,9 +215,7 @@ class TestChangedLevels:
         base = _git(repo, "rev-parse", "HEAD")
         (repo / "docs" / "d.md").write_text("changed", encoding="utf-8")
         _git(repo, "commit", "-q", "-am", "change")
-        index = {
-            "levels": {level: {"source_sha": base} for level in render_checks.LEVELS}
-        }
+        index = {"levels": {level: {"source_sha": base} for level in LEVELS}}
 
         # Act
         result = changed_levels(parse_curriculum(_MINI_CURRICULUM), index, repo)
@@ -225,9 +226,7 @@ class TestChangedLevels:
     def test_given_unknown_sha_when_checked_then_level_selected(self, repo):
         # Arrange
         head = _git(repo, "rev-parse", "HEAD")
-        index = {
-            "levels": {level: {"source_sha": head} for level in render_checks.LEVELS}
-        }
+        index = {"levels": {level: {"source_sha": head} for level in LEVELS}}
         index["levels"]["L200"]["source_sha"] = "0" * 40
 
         # Act
@@ -239,9 +238,7 @@ class TestChangedLevels:
     def test_given_force_when_checked_then_all_levels(self, repo):
         # Arrange
         head = _git(repo, "rev-parse", "HEAD")
-        index = {
-            "levels": {level: {"source_sha": head} for level in render_checks.LEVELS}
-        }
+        index = {"levels": {level: {"source_sha": head} for level in LEVELS}}
 
         # Act
         result = changed_levels(
@@ -384,9 +381,14 @@ class TestCheckDuration:
 class TestEvaluate:
     """Tests for evaluate."""
 
+    @pytest.fixture(autouse=True)
+    def _english_subtitles(self, mocker):
+        mocker.patch("render_checks.subtitle_languages", return_value=["eng"])
+
     def _level(self, tmp_path, level="L100", mocker=None):
         _write_slides(tmp_path, 3)
         (tmp_path / "output").mkdir()
+        (tmp_path / "output" / f"hve-demo-{level}.mp4").write_bytes(b"mp4")
         (tmp_path / "output" / "segments.yml").write_text(
             build_segments(tmp_path, f"hve-demo-{level}.mp4"), encoding="utf-8"
         )
@@ -409,7 +411,7 @@ class TestEvaluate:
     def test_given_rendered_deck_level_when_evaluated_then_ok(self, tmp_path, mocker):
         # Arrange
         level_dir = self._level(tmp_path)
-        mocker.patch.object(render_checks, "measure_minutes", return_value=5.0)
+        mocker.patch("render_checks.measure_minutes", return_value=5.0)
 
         # Act
         result = evaluate("L100", level_dir, load_curriculum())
@@ -425,7 +427,7 @@ class TestEvaluate:
     ):
         # Arrange
         level_dir = self._level(tmp_path, "L300")
-        mocker.patch.object(render_checks, "measure_minutes", return_value=9.0)
+        mocker.patch("render_checks.measure_minutes", return_value=9.0)
 
         # Act
         result = evaluate("L300", level_dir, load_curriculum())
@@ -440,7 +442,7 @@ class TestEvaluate:
     ):
         # Arrange
         level_dir = self._level(tmp_path, "L300")
-        mocker.patch.object(render_checks, "measure_minutes", return_value=9.0)
+        mocker.patch("render_checks.measure_minutes", return_value=9.0)
 
         # Act
         result = evaluate(
@@ -456,7 +458,7 @@ class TestEvaluate:
     ):
         # Arrange
         level_dir = self._level(tmp_path)
-        mocker.patch.object(render_checks, "measure_minutes", return_value=7.0)
+        mocker.patch("render_checks.measure_minutes", return_value=7.0)
 
         # Act
         rc = main(["evaluate", "--level", "L100", "--level-dir", str(level_dir)])
@@ -550,7 +552,7 @@ class TestTranscriptPage:
     ):
         # Arrange
         _write_slides(tmp_path, 1, notes="Say <b>hi</b>.")
-        mocker.patch.object(render_checks, "measure_minutes", return_value=4.5)
+        mocker.patch("render_checks.measure_minutes", return_value=4.5)
 
         # Act
         page = build_transcript_page("L100", tmp_path)
@@ -606,3 +608,114 @@ class TestDeckAccessibility:
         # Assert
         assert result["result"] == "fail"
         assert "captions file missing" in result["evidence"]
+
+
+class TestAccessibilityDelivery:
+    """T-09 checks the delivered captions and the transcript's content."""
+
+    def _level(self, tmp_path, mocker, languages=("eng",)):
+        _write_slides(tmp_path, 2, notes="First sentence. Second one.")
+        output = tmp_path / "output"
+        output.mkdir()
+        _write_deck(output / "hve-demo-L100.pptx", 2)
+        (output / "hve-demo-L100.mp4").write_bytes(b"mp4")
+        (output / "hve-demo-L100.vtt").write_text(
+            build_captions(tmp_path), encoding="utf-8"
+        )
+        mocker.patch("render_checks.measure_minutes", return_value=4.5)
+        (output / "index.html").write_text(
+            build_transcript_page("L100", tmp_path), encoding="utf-8"
+        )
+        mocker.patch("render_checks.subtitle_languages", return_value=list(languages))
+        return tmp_path
+
+    def test_given_complete_delivery_when_scored_then_pass(self, tmp_path, mocker):
+        level_dir = self._level(tmp_path, mocker)
+
+        assert check_accessibility("L100", level_dir)["result"] == "pass"
+
+    @pytest.mark.parametrize("languages", [(), ("deu",)])
+    def test_given_mp4_without_english_subtitles_when_scored_then_fail(
+        self, tmp_path, mocker, languages
+    ):
+        level_dir = self._level(tmp_path, mocker, languages)
+
+        result = check_accessibility("L100", level_dir)
+
+        assert result["result"] == "fail"
+        assert "no English subtitle stream" in result["evidence"]
+
+    def test_given_track_marker_but_missing_section_when_scored_then_fail(
+        self, tmp_path, mocker
+    ):
+        level_dir = self._level(tmp_path, mocker)
+        page = level_dir / "output" / "index.html"
+        text = page.read_text(encoding="utf-8")
+        start = text.index('<section aria-labelledby="slide-2">')
+        page.write_text(text[:start] + text[text.index("</section>", start) + 10 :])
+
+        result = check_accessibility("L100", level_dir)
+
+        assert result["result"] == "fail"
+        assert "1 sections for 2 slides" in result["evidence"]
+
+    def test_given_transcript_narration_edited_when_scored_then_fail(
+        self, tmp_path, mocker
+    ):
+        level_dir = self._level(tmp_path, mocker)
+        page = level_dir / "output" / "index.html"
+        page.write_text(
+            page.read_text(encoding="utf-8").replace("Second one.", "Other.", 1)
+        )
+
+        result = check_accessibility("L100", level_dir)
+
+        assert "slide 1 narration does not match" in result["evidence"]
+
+    def test_given_caption_text_drift_when_scored_then_fail(self, tmp_path, mocker):
+        level_dir = self._level(tmp_path, mocker)
+        vtt = level_dir / "output" / "hve-demo-L100.vtt"
+        vtt.write_text(vtt.read_text(encoding="utf-8").replace("Second", "Third"))
+
+        result = check_accessibility("L100", level_dir)
+
+        assert "caption text does not match the narration" in result["evidence"]
+
+    @pytest.mark.parametrize(
+        ("vtt", "message"),
+        [
+            ("1\n00:00:00.000 --> 00:00:01.000\nHi\n", "WEBVTT header"),
+            ("WEBVTT\n\n1\n00:00:01.000 -> 00:00:02.000\nHi\n", "malformed"),
+            ("WEBVTT\n\n1\n00:00:02.000 --> 00:00:01.000\nHi\n", "zero-length"),
+            (
+                "WEBVTT\n\n00:00:02.000 --> 00:00:03.000\nA\n\n"
+                "00:00:01.000 --> 00:00:02.000\nB\n",
+                "back in time",
+            ),
+        ],
+    )
+    def test_given_malformed_webvtt_when_parsed_then_raises(self, vtt, message):
+        with pytest.raises(CheckError, match=message):
+            parse_webvtt(vtt)
+
+    def test_given_valid_webvtt_when_parsed_then_cues_unescaped(self):
+        cues = parse_webvtt("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.500\nA &amp; B\n")
+
+        assert cues == [(0.0, 1.5, "A & B")]
+
+
+class TestPublicHelpers:
+    """Helpers shared with html_deck."""
+
+    def test_given_mixed_whitespace_and_case_when_normalized_then_equal(self):
+        assert normalized_text("  Hello\n  World ") == normalized_text("hello world")
+
+    def test_given_style_file_when_read_then_returns_metadata(self, tmp_path):
+        style = tmp_path / "content" / "global" / "style.yaml"
+        style.parent.mkdir(parents=True)
+        style.write_text("metadata:\n  title: Demo\n  language: en-US\n")
+
+        assert style_metadata(tmp_path) == {"title": "Demo", "language": "en-US"}
+
+    def test_given_no_style_file_when_read_then_empty(self, tmp_path):
+        assert style_metadata(tmp_path) == {}

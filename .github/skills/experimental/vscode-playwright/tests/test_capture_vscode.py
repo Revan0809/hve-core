@@ -4,9 +4,19 @@
 
 from __future__ import annotations
 
-import capture_vscode
 import pytest
-from capture_vscode import PlanError, rendered_font_pt, validate_plan
+from capture_vscode import (
+    DEFAULT_FONT_SIZE_PX,
+    DEFAULT_MIN_FONT_PT,
+    DEFAULT_START_ZOOM,
+    EXIT_FAILURE,
+    PlanError,
+    capture_settings,
+    contained_path,
+    main,
+    rendered_font_pt,
+    validate_plan,
+)
 
 
 def _plan(**overrides):
@@ -71,10 +81,56 @@ class TestValidatePlan:
         with pytest.raises(PlanError, match="font_size"):
             validate_plan(_plan(font_size=value))
 
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "../outside.png",
+            "frames/../../outside.png",
+            "/tmp/outside.png",
+            "C:/outside.png",
+            "frames\\a.png",
+            "frames//a.png",
+            "./a.png",
+            "frames/a.jpg",
+        ],
+    )
+    def test_given_unsafe_output_when_validated_then_rejects(self, output):
+        capture = {"id": "x", "file": "a.json", "output": output}
+
+        with pytest.raises(PlanError, match="relative .png path"):
+            validate_plan(_plan(captures=[capture]))
+
+    @pytest.mark.parametrize("capture_id", ["../x", "a/b", "a\\b", ".hidden", "-x"])
+    def test_given_unsafe_id_when_validated_then_rejects(self, capture_id):
+        capture = {"id": capture_id, "file": "a.json", "output": "a.png"}
+
+        with pytest.raises(PlanError, match="'id' must be"):
+            validate_plan(_plan(captures=[capture]))
+
+
+class TestContainedPath:
+    def test_given_nested_path_when_resolved_then_stays_under_root(self, tmp_path):
+        path = contained_path(tmp_path, "content/slide-005/images/a.png")
+
+        assert path == tmp_path.resolve() / "content" / "slide-005" / "images" / "a.png"
+
+    def test_given_traversal_when_resolved_then_rejects(self, tmp_path):
+        with pytest.raises(PlanError, match="outside"):
+            contained_path(tmp_path / "root", "../outside.png")
+
+    def test_given_symlinked_parent_when_resolved_then_rejects(self, tmp_path):
+        root = tmp_path / "root"
+        (root).mkdir()
+        (tmp_path / "elsewhere").mkdir()
+        (root / "frames").symlink_to(tmp_path / "elsewhere")
+
+        with pytest.raises(PlanError, match="symlink"):
+            contained_path(root, "frames/a.png")
+
 
 class TestCaptureSettings:
     def test_given_theme_when_built_then_disables_trust_and_chrome(self):
-        settings = capture_vscode.capture_settings("Default Dark Modern", 26)
+        settings = capture_settings("Default Dark Modern", 26)
 
         assert settings["workbench.colorTheme"] == "Default Dark Modern"
         assert settings["window.autoDetectColorScheme"] is False
@@ -85,12 +141,12 @@ class TestCaptureSettings:
     def test_given_default_font_size_when_measured_then_clears_floor(self):
         # Zoom stays at 1.0 by default, so the font size alone must clear 18 pt.
         font_pt = rendered_font_pt(
-            capture_vscode.DEFAULT_FONT_SIZE_PX,
-            capture_vscode.DEFAULT_FONT_SIZE_PX,
-            capture_vscode.DEFAULT_START_ZOOM,
+            DEFAULT_FONT_SIZE_PX,
+            DEFAULT_FONT_SIZE_PX,
+            DEFAULT_START_ZOOM,
         )
 
-        assert font_pt >= capture_vscode.DEFAULT_MIN_FONT_PT
+        assert font_pt >= DEFAULT_MIN_FONT_PT
 
 
 class TestRenderedFontPt:
@@ -109,9 +165,7 @@ class TestMain:
         plan_path = tmp_path / "plan.yml"
         plan_path.write_text("captures: []\n", encoding="utf-8")
 
-        exit_code = capture_vscode.main(
-            ["--plan", str(plan_path), "--workspace", str(tmp_path)]
-        )
+        exit_code = main(["--plan", str(plan_path), "--workspace", str(tmp_path)])
 
-        assert exit_code == capture_vscode.EXIT_FAILURE
+        assert exit_code == EXIT_FAILURE
         assert '"ok": false' in capsys.readouterr().out.strip().splitlines()[-1]

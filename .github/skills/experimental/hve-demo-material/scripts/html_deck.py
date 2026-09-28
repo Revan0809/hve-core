@@ -33,12 +33,12 @@ from render_checks import (
     LEVELS,
     SKILL_ROOT,
     CheckError,
-    _normalized,
-    _style_metadata,
     load_curriculum,
     load_slides,
+    normalized_text,
     notes_text,
     on_screen_text,
+    style_metadata,
 )
 
 COPIED_FILES = (
@@ -248,7 +248,7 @@ def slide_markup(
         if kind in ("textbox", "shape"):
             if not text and not _items(elem.get("bullets") or elem.get("paragraphs")):
                 continue
-            if _normalized(text) == _normalized(title):
+            if normalized_text(text) == normalized_text(title):
                 continue
             holders = [f for f in frames if _contains(f, elem)]
             if holders:
@@ -379,7 +379,7 @@ def build_deck_source(
     if not slides:
         raise CheckError(f"no slides under {level_dir / 'content'}")
     curriculum = load_curriculum()
-    metadata = _style_metadata(level_dir)
+    metadata = style_metadata(level_dir)
     title = str(metadata.get("title") or f"HVE Core {level}")
     description = str(metadata.get("subject") or f"HVE Core {level} demo material")
 

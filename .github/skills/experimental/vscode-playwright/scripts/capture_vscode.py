@@ -29,6 +29,7 @@ import argparse
 import contextlib
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -58,9 +59,46 @@ UI_SETTLE_MS = 700
 # Markdown opens as a cross-origin preview webview whose font cannot be read.
 UNMEASURABLE_SUFFIXES = frozenset({".md", ".markdown"})
 
+# Capture IDs name debug screenshots, so they must be one filename-safe token.
+CAPTURE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
 
 class PlanError(ValueError):
     """Raised when the capture plan is missing or malformed."""
+
+
+def _check_output_path(value: str, capture_id: str) -> None:
+    """Require a relative ``.png`` path with no empty, ``.``, or ``..`` parts."""
+    parts = value.split("/")
+    if (
+        "\\" in value
+        or value.startswith("/")
+        or re.match(r"^[A-Za-z]:", value)
+        or any(part in ("", ".", "..") for part in parts)
+        or not value.lower().endswith(".png")
+    ):
+        raise PlanError(
+            f"capture '{capture_id}' 'output' must be a relative .png path "
+            "inside the output root, using / separators"
+        )
+
+
+def contained_path(root: Path, relative: str) -> Path:
+    """Return ``root / relative`` after proving it stays inside ``root``.
+
+    Rejects a path that resolves outside the root, and any existing symlink
+    between the root and the file, so a planted link cannot redirect a write.
+    """
+    base = root.resolve()
+    candidate = base.joinpath(*relative.split("/"))
+    current = base
+    for part in candidate.relative_to(base).parts:
+        current = current / part
+        if current.is_symlink():
+            raise PlanError(f"refusing to write through symlink {current}")
+    if not candidate.resolve().is_relative_to(base):
+        raise PlanError(f"{relative} resolves outside {base}")
+    return candidate
 
 
 def read_plan(path: Path) -> dict:
@@ -111,6 +149,12 @@ def validate_plan(data: dict) -> tuple[dict, list[dict]]:
         for field, value in (("id", capture_id), ("file", target), ("output", output)):
             if not isinstance(value, str) or not value.strip():
                 raise PlanError(f"capture {index} requires a non-empty '{field}'")
+        if not CAPTURE_ID_PATTERN.match(capture_id):
+            raise PlanError(
+                f"capture {index} 'id' must be letters, digits, '.', '_', or '-' "
+                "and start with a letter or digit"
+            )
+        _check_output_path(output, capture_id)
         if capture_id in seen_ids:
             raise PlanError(f"duplicate capture id '{capture_id}'")
         seen_ids.add(capture_id)
@@ -181,15 +225,19 @@ def _resolve_cli(explicit: str | None) -> str:
 
 def _wait_for_server(url: str, timeout_s: int) -> None:
     deadline = time.monotonic() + timeout_s
+    last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=5) as response:
                 if response.status == 200:
                     return
-        except (urllib.error.URLError, OSError):
-            pass
+        except (urllib.error.URLError, OSError) as error:
+            # The server refuses connections until it has started; keep polling.
+            last_error = error
         time.sleep(2)
-    raise RuntimeError(f"serve-web did not become ready within {timeout_s}s")
+    raise RuntimeError(
+        f"serve-web did not become ready within {timeout_s}s: {last_error}"
+    )
 
 
 @contextlib.contextmanager
@@ -430,7 +478,7 @@ def _capture_one(
         measurement = measure_and_fit(
             page, settings["start_zoom"], settings["min_font_pt"]
         )
-        output_path = output_root / capture["output"]
+        output_path = contained_path(output_root, capture["output"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(output_path))
         result.update(measurement)
@@ -449,8 +497,8 @@ def _capture_one(
             )
     except Exception as exc:  # noqa: BLE001 - reported per capture, not raised
         result["meets_floor"] = False
-        debug_path = output_root / f"debug-{capture['id']}.png"
         with contextlib.suppress(Exception):
+            debug_path = contained_path(output_root, f"debug-{capture['id']}.png")
             debug_path.parent.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(debug_path))
             result["debug_screenshot"] = str(debug_path)

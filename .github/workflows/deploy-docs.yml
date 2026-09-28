@@ -166,38 +166,14 @@ jobs:
       # the latest bundle rather than only deploys triggered by a render.
       - name: Find the latest demo material bundle
         id: demo
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const { data: repository } = await github.rest.repos.get({ ...context.repo });
-            let runs = [];
-            try {
-              ({ data: { workflow_runs: runs } } = await github.rest.actions.listWorkflowRuns({
-                ...context.repo,
-                workflow_id: "demo-material-render.yml",
-                branch: repository.default_branch,
-                status: "success",
-                per_page: 20,
-              }));
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            for (const run of runs) {
-              if (run.path !== ".github/workflows/demo-material-render.yml") continue;
-              const artifacts = await github.paginate(
-                github.rest.actions.listWorkflowRunArtifacts,
-                { ...context.repo, run_id: run.id, per_page: 100 },
-              );
-              const bundle = artifacts.filter(
-                (artifact) => !artifact.expired && artifact.name === `demo-material-site-${run.id}`,
-              );
-              if (bundle.length === 1) {
-                core.setOutput("artifact-id", String(bundle[0].id));
-                core.setOutput("run-id", String(run.id));
-                return;
-              }
-            }
-            core.notice("No demo material bundle is available; the demo material page links stay empty.");
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 .github/skills/experimental/hve-demo-material/scripts/artifact_lookup.py find \
+            --workflow demo-material-render.yml --artifact-prefix demo-material-site \
+            --github-output "${GITHUB_OUTPUT}"
 
       - name: Download the demo material bundle
         if: ${{ steps.demo.outputs.artifact-id != '' }}
@@ -208,8 +184,19 @@ jobs:
           github-token: ${{ github.token }}
           path: demo-material-bundle
 
+      # Without an artifact, keep what is published; a failed recovery fails the
+      # deploy instead of removing the material from the site.
+      - name: Recover the published demo material
+        id: recovered
+        if: ${{ steps.demo.outputs.artifact-id == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/skills/experimental/hve-demo-material/scripts/artifact_lookup.py recover \
+            --target demo-material-bundle --github-output "${GITHUB_OUTPUT}"
+
       - name: Stage demo material
-        if: ${{ steps.demo.outputs.artifact-id != '' }}
+        if: ${{ steps.demo.outputs.artifact-id != '' || steps.recovered.outputs.status == 'recovered' }}
         run: |
           python3 - <<'PY'
           import json, re, shutil

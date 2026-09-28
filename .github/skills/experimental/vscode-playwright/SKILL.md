@@ -6,7 +6,7 @@ compatibility: 'Requires VS Code CLI (code or code-insiders). Scripted capture r
 metadata:
   authors: "microsoft/hve-core"
   spec_version: "1.0"
-  last_updated: "2026-09-23"
+  last_updated: "2026-09-28"
 ---
 
 # VS Code Playwright Screenshot Skill
@@ -29,7 +29,7 @@ uv run playwright install --with-deps chromium
 uv run python scripts/capture_vscode.py --plan capture-plan.yml --workspace /path/to/repo
 ```
 
-A plan names each capture's `id`, a workspace-relative `file`, and an `output` path relative to the plan directory, or to `--output-root` when given:
+A plan names each capture's `id`, a workspace-relative `file`, and an `output` path relative to the plan directory, or to `--output-root` when given. An `id` is one filename-safe token of letters, digits, `.`, `_`, or `-`. An `output` is a relative `.png` path with `/` separators and no `..`, and the script refuses to write outside the output root or through a symlink:
 
 ```yaml
 resolution: 1920x1080

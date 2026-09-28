@@ -9,7 +9,7 @@ description: "Pinned dark house style for HVE demo-material decks, covering the 
 Three runs produced three different looks. L100 and L200 built a dark deck from
 seven colours on a `#1B1B1F` background with Microsoft blue and cyan accents. A
 later L300 built a light deck instead: sixteen colours, an off-white background,
-black text, a white card fill, and teal, green, orange, and yellow accents.
+near-`#000000` text, a white card fill, and teal, green, orange, and yellow accents.
 Nothing in this skill described a style, so nothing detected the drift, and an
 unattended `full` run would not have caught it either.
 

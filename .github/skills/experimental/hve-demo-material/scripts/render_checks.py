@@ -37,6 +37,7 @@ import sys
 import wave
 import xml.etree.ElementTree as ET
 import zipfile
+from html.parser import HTMLParser
 from pathlib import Path
 
 EXIT_SUCCESS = 0
@@ -426,7 +427,8 @@ def notes_text(slide: dict) -> str:
     return " ".join(str(slide.get("speaker_notes") or "").split())
 
 
-def _normalized(text: str) -> str:
+def normalized_text(text: str) -> str:
+    """Return ``text`` with whitespace collapsed and case folded, for comparison."""
     return " ".join(str(text).split()).casefold()
 
 
@@ -456,7 +458,7 @@ def on_screen_text(slide: dict) -> list[str]:
     walk(slide.get("elements", []))
     unique: list[str] = []
     for text in (" ".join(t.split()) for t in found):
-        if text and _normalized(text) not in {_normalized(u) for u in unique}:
+        if text and normalized_text(text) not in {normalized_text(u) for u in unique}:
             unique.append(text)
     return unique
 
@@ -534,7 +536,8 @@ def build_captions(level_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def _style_metadata(level_dir: Path) -> dict:
+def style_metadata(level_dir: Path) -> dict:
+    """Return the ``metadata`` mapping of the level's style file, or ``{}``."""
     import yaml
 
     style_file = level_dir / "content" / "global" / "style.yaml"
@@ -553,6 +556,15 @@ _PAGE_STYLE = (
 )
 
 
+def transcript_on_screen(slide: dict, title: str) -> list[str]:
+    """Return the on-screen text a transcript lists for a slide, minus its title."""
+    return [
+        text
+        for text in on_screen_text(slide)
+        if normalized_text(text) != normalized_text(title)
+    ]
+
+
 def build_transcript_page(level: str, level_dir: Path) -> str:
     """Return an HTML page with a captioned player and a full transcript.
 
@@ -561,7 +573,7 @@ def build_transcript_page(level: str, level_dir: Path) -> str:
     escaped, and the page loads nothing but its own media.
     """
     esc = html.escape
-    metadata = _style_metadata(level_dir)
+    metadata = style_metadata(level_dir)
     title = str(metadata.get("title") or f"HVE Core {level}")
     language = str(metadata.get("language") or "en-US")
     minutes = measure_minutes(level_dir / "output" / f"hve-demo-{level}.mp4")
@@ -575,11 +587,7 @@ def build_transcript_page(level: str, level_dir: Path) -> str:
     sections = []
     for number, slide in load_slides(level_dir / "content"):
         slide_title = str(slide.get("title") or f"Slide {number}")
-        shown = [
-            text
-            for text in on_screen_text(slide)
-            if _normalized(text) != _normalized(slide_title)
-        ]
+        shown = transcript_on_screen(slide, slide_title)
         on_screen = (
             "<h4>On screen</h4><ul>"
             + "".join(f"<li>{esc(text)}</li>" for text in shown)
@@ -654,35 +662,205 @@ def deck_accessibility_problems(pptx: Path, language: str | None) -> list[str]:
     return problems
 
 
+_VTT_TIMING = re.compile(
+    r"^(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3}) --> "
+    r"(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3})(?:[ \t].*)?$"
+)
+
+
+def _vtt_seconds(hours: str, minutes: str, seconds: str, millis: str) -> float:
+    return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
+
+
+def parse_webvtt(text: str) -> list[tuple[float, float, str]]:
+    """Return ``(start, end, text)`` for every cue in a WebVTT file.
+
+    Raises ``CheckError`` for a missing header, a malformed or reversed
+    timing line, an empty cue, or cues that go back in time.
+    """
+    blocks = text.replace("\r\n", "\n").split("\n\n")
+    if not blocks[0].startswith("WEBVTT"):
+        raise CheckError("captions file lacks the WEBVTT header")
+    cues: list[tuple[float, float, str]] = []
+    for block in blocks[1:]:
+        rows = [row for row in block.split("\n") if row.strip()]
+        if not rows or rows[0].startswith(("NOTE", "STYLE", "REGION")):
+            continue
+        timing = 0 if "-->" in rows[0] else 1
+        match = _VTT_TIMING.match(rows[timing].strip()) if timing < len(rows) else None
+        if not match:
+            raise CheckError(f"malformed caption timing near {rows[0]!r}")
+        start = _vtt_seconds(*match.groups()[:4])
+        end = _vtt_seconds(*match.groups()[4:])
+        body = " ".join(rows[timing + 1 :]).strip()
+        if end <= start or not body:
+            raise CheckError(f"empty or zero-length caption cue at {rows[timing]}")
+        if cues and start < cues[-1][0]:
+            raise CheckError(f"caption cue at {rows[timing]} goes back in time")
+        cues.append((start, end, html.unescape(body)))
+    return cues
+
+
+def subtitle_languages(mp4: Path) -> list[str] | None:
+    """Return the language tag of every subtitle stream in ``mp4``.
+
+    Returns ``None`` when ffprobe cannot read the file.
+    """
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "s",
+            "-show_entries",
+            "stream=index:stream_tags=language",
+            "-of",
+            "json",
+            str(mp4),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        streams = json.loads(result.stdout or "{}").get("streams") or []
+    except json.JSONDecodeError:
+        return None
+    return [
+        str((stream.get("tags") or {}).get("language", "und")) for stream in streams
+    ]
+
+
+class _TranscriptParser(HTMLParser):
+    """Collect the captions tracks and per-slide sections of a transcript page."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tracks: list[dict] = []
+        self.sections: list[dict] = []
+        self._section: dict | None = None
+        self._field: str | None = None
+        self._subhead = ""
+        self._part = ""
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "track":
+            self.tracks.append(attributes)
+        elif tag == "section":
+            self._section = {"heading": "", "on_screen": [], "narration": ""}
+            self.sections.append(self._section)
+            self._part = ""
+        elif self._section is not None:
+            if tag == "h3":
+                self._field = "heading"
+            elif tag == "h4":
+                self._field, self._subhead = "subhead", ""
+            elif tag == "li" and self._part == "on screen":
+                self._field = "item"
+                self._section["on_screen"].append("")
+            elif tag == "p" and self._part == "narration":
+                self._field = "narration"
+
+    def handle_endtag(self, tag):
+        if tag == "section":
+            self._section = None
+        if tag == "h4":
+            self._part = normalized_text(self._subhead)
+        if tag in ("h3", "h4", "li", "p"):
+            self._field = None
+
+    def handle_data(self, data):
+        if self._section is None or self._field is None:
+            return
+        if self._field == "subhead":
+            self._subhead += data
+        elif self._field == "item":
+            self._section["on_screen"][-1] += data
+        else:
+            self._section[self._field] += data
+
+
+def transcript_problems(level_dir: Path, page: str) -> list[str]:
+    """Return what the transcript page lacks against the level's slides."""
+    parser = _TranscriptParser()
+    parser.feed(page)
+    problems = []
+    if not any(track.get("kind") == "captions" for track in parser.tracks):
+        problems.append("transcript page has no captions track")
+    slides = load_slides(level_dir / "content")
+    if len(parser.sections) != len(slides):
+        problems.append(
+            f"transcript has {len(parser.sections)} sections for {len(slides)} slides"
+        )
+    for (number, slide), section in zip(slides, parser.sections):
+        title = str(slide.get("title") or f"Slide {number}")
+        expected = {
+            "title": normalized_text(f"Slide {number}: {title}"),
+            "on-screen text": [
+                normalized_text(text) for text in transcript_on_screen(slide, title)
+            ],
+            "narration": normalized_text(notes_text(slide)),
+        }
+        found = {
+            "title": normalized_text(section["heading"]),
+            "on-screen text": [normalized_text(text) for text in section["on_screen"]],
+            "narration": normalized_text(section["narration"]),
+        }
+        problems += [
+            f"transcript slide {number} {name} does not match the deck"
+            for name in expected
+            if expected[name] != found[name]
+        ]
+    return problems
+
+
 def check_accessibility(level: str, level_dir: Path) -> dict:
-    """Score T-09: captions, a transcript page, and an accessible deck."""
+    """Score T-09: delivered captions, a complete transcript, and an
+    accessible deck."""
     output = level_dir / "output"
     problems = []
+    slides = load_slides(level_dir / "content")
+    narration = normalized_text(" ".join(notes_text(slide) for _, slide in slides))
     captions = output / f"hve-demo-{level}.vtt"
-    narrated = sum(
-        1 for _, slide in load_slides(level_dir / "content") if notes_text(slide)
-    )
     if not captions.is_file():
         problems.append("captions file missing")
     else:
-        cues = captions.read_text(encoding="utf-8").count(" --> ")
-        if cues < narrated:
-            problems.append(f"{cues} caption cues for {narrated} narrated slides")
+        try:
+            cues = parse_webvtt(captions.read_text(encoding="utf-8"))
+        except CheckError as error:
+            problems.append(str(error))
+        else:
+            if normalized_text(" ".join(cue[2] for cue in cues)) != narration:
+                problems.append("caption text does not match the narration")
+    video = output / f"hve-demo-{level}.mp4"
+    if not video.is_file():
+        problems.append("video missing")
+    else:
+        languages = subtitle_languages(video)
+        if languages is None:
+            problems.append("could not read the MP4 streams")
+        elif not {"eng", "en"} & set(languages):
+            problems.append("MP4 has no English subtitle stream")
     page = output / "index.html"
-    if not page.is_file() or '<track kind="captions"' not in page.read_text(
-        encoding="utf-8"
-    ):
-        problems.append("transcript page with a captions track missing")
+    if not page.is_file():
+        problems.append("transcript page missing")
+    else:
+        problems += transcript_problems(level_dir, page.read_text(encoding="utf-8"))
     deck = output / f"hve-demo-{level}.pptx"
     if deck.is_file():
-        language = _style_metadata(level_dir).get("language")
+        language = style_metadata(level_dir).get("language")
         problems += deck_accessibility_problems(deck, language)
     else:
         problems.append("deck missing")
     return {
         "result": "fail" if problems else "pass",
         "evidence": "; ".join(problems)
-        or "captions, transcript page, slide titles, alt text, and language present",
+        or "English caption track and captions matching the narration, a transcript "
+        "covering every slide, slide titles, alt text, and language present",
     }
 
 

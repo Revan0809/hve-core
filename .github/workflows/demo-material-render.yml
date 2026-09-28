@@ -40,6 +40,7 @@ env:
   VSCODE_CLI_SHA256: 651bc54695531375589c837b907a4e784bc2892076592e2464da12ead994d4bd
   # A bundle older than this is re-uploaded so it never reaches the 90-day artifact expiry.
   REFRESH_AFTER_DAYS: 60
+  LOOKUP: .github/skills/experimental/hve-demo-material/scripts/artifact_lookup.py
 
 jobs:
   resolve:
@@ -54,14 +55,43 @@ jobs:
       source-sha: ${{ steps.resolve.outputs.source-sha }}
       author-run-id: ${{ steps.resolve.outputs.author-run-id }}
       content-artifact-id: ${{ steps.resolve.outputs.content-artifact-id }}
-      previous-artifact-id: ${{ steps.resolve.outputs.previous-artifact-id }}
-      previous-run-id: ${{ steps.resolve.outputs.previous-run-id }}
+      previous-artifact-id: ${{ steps.previous.outputs.artifact-id }}
+      previous-run-id: ${{ steps.previous.outputs.run-id }}
     steps:
-      - name: Resolve author run and previous bundle
+      - name: Checkout the lookup script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/skills/experimental/hve-demo-material/scripts
+
+      - name: Find the previous bundle
+        id: previous
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 "${LOOKUP}" find --workflow demo-material-render.yml \
+            --artifact-prefix demo-material-site \
+            --exclude-run-id "${GITHUB_RUN_ID}" --github-output "${GITHUB_OUTPUT}"
+
+      # Pages keeps the last published bundle after every artifact has expired.
+      - name: Check for a published bundle to recover
+        id: published
+        if: ${{ steps.previous.outputs.artifact-id == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "${LOOKUP}" recover --index-only \
+            --target "${RUNNER_TEMP}/published" --github-output "${GITHUB_OUTPUT}"
+
+      - name: Resolve author run and render mode
         id: resolve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           DISPATCH_AUTHOR_RUN_ID: ${{ inputs.author-run-id }}
+          PREVIOUS_CREATED_AT: ${{ steps.previous.outputs.created-at }}
+          PUBLISHED_STATUS: ${{ steps.published.outputs.status }}
         with:
           script: |
             const refreshAfterMs = Number(process.env.REFRESH_AFTER_DAYS) * 86400000;
@@ -77,24 +107,7 @@ jobs:
               return matches.length === 1 ? matches[0] : null;
             };
 
-            const { data: own } = await github.rest.actions.listWorkflowRuns({
-              ...context.repo,
-              workflow_id: "demo-material-render.yml",
-              branch: defaultBranch,
-              status: "success",
-              per_page: 20,
-            });
-            let previous = null;
-            for (const run of own.workflow_runs) {
-              if (run.id === context.runId) continue;
-              const artifact = await findArtifact(run.id, `demo-material-site-${run.id}`);
-              if (artifact) {
-                previous = artifact;
-                core.setOutput("previous-artifact-id", String(artifact.id));
-                core.setOutput("previous-run-id", String(run.id));
-                break;
-              }
-            }
+            const previousCreatedAt = process.env.PREVIOUS_CREATED_AT;
 
             let authorRun = null;
             if (context.eventName === "workflow_run") {
@@ -131,8 +144,13 @@ jobs:
               return;
             }
 
-            const stale = previous && Date.now() - Date.parse(previous.created_at) > refreshAfterMs;
-            const manual = previous && context.eventName === "workflow_dispatch";
+            // Without an artifact, a published bundle is recovered from the site and re-uploaded.
+            if (!previousCreatedAt) {
+              core.setOutput("mode", process.env.PUBLISHED_STATUS === "recovered" ? "refresh" : "skip");
+              return;
+            }
+            const stale = Date.now() - Date.parse(previousCreatedAt) > refreshAfterMs;
+            const manual = context.eventName === "workflow_dispatch";
             core.setOutput("mode", stale || manual ? "refresh" : "skip");
 
       - name: Download authored content
@@ -201,10 +219,11 @@ jobs:
       LEVEL_DIR: ${{ github.workspace }}/../demo-level/${{ matrix.level }}
       PIPER_DATA_DIR: ${{ github.workspace }}/../piper-voices
     steps:
-      - name: Checkout the authored commit
+      # Scripts come from the trusted default branch; the authored commit only
+      # supplies the content artifact, which is validated as data.
+      - name: Checkout the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve.outputs.source-sha }}
           persist-credentials: false
 
       - name: Download authored content
@@ -224,6 +243,8 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
 
       - name: Setup Node.js for the HTML slide deck
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -328,6 +349,12 @@ jobs:
     permissions:
       actions: read
     steps:
+      - name: Checkout the lookup script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/skills/experimental/hve-demo-material/scripts
+
       - name: Download the previous bundle
         if: ${{ needs.resolve.outputs.previous-artifact-id != '' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -336,6 +363,13 @@ jobs:
           run-id: ${{ needs.resolve.outputs.previous-run-id }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/site
+
+      - name: Recover the published bundle
+        if: ${{ needs.resolve.outputs.previous-artifact-id == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "${LOOKUP}" recover --target "${RUNNER_TEMP}/site"
 
       - name: Download this run's renders
         if: ${{ needs.resolve.outputs.mode == 'render' }}

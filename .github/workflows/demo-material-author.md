@@ -37,39 +37,14 @@ jobs:
 
       - name: Find the latest render index
         id: index
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const { data: repository } = await github.rest.repos.get({ ...context.repo });
-            let runs = [];
-            try {
-              const { data } = await github.rest.actions.listWorkflowRuns({
-                ...context.repo,
-                workflow_id: "demo-material-render.yml",
-                branch: repository.default_branch,
-                status: "success",
-                per_page: 20,
-              });
-              runs = data.workflow_runs;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            for (const run of runs) {
-              const { data } = await github.rest.actions.listWorkflowRunArtifacts({
-                ...context.repo,
-                run_id: run.id,
-                per_page: 100,
-              });
-              const index = data.artifacts.find(
-                (artifact) => !artifact.expired && artifact.name === `demo-material-index-${run.id}`,
-              );
-              if (index) {
-                core.setOutput("artifact-id", String(index.id));
-                core.setOutput("run-id", String(run.id));
-                return;
-              }
-            }
-            core.info("No previous render index; every considered level is new.");
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 .github/skills/experimental/hve-demo-material/scripts/artifact_lookup.py find \
+            --workflow demo-material-render.yml --artifact-prefix demo-material-index \
+            --github-output "${GITHUB_OUTPUT}"
 
       - name: Download the latest render index
         if: ${{ steps.index.outputs.artifact-id != '' }}
@@ -79,6 +54,15 @@ jobs:
           run-id: ${{ steps.index.outputs.run-id }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/demo-index
+
+      # After every index artifact expires, the published index still records what was built.
+      - name: Recover the published render index
+        if: ${{ steps.index.outputs.artifact-id == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/skills/experimental/hve-demo-material/scripts/artifact_lookup.py recover \
+            --index-only --target "${RUNNER_TEMP}/demo-index"
 
       - name: Select levels to author
         id: select

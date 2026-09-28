@@ -767,7 +767,8 @@ class TestAddArrowFlowElement:
         shapes = [s for s in blank_slide.shapes if s.has_text_frame]
         sizes = {s.text_frame.paragraphs[0].runs[0].font.size for s in shapes}
         assert len(sizes) == 1, "flow must render one uniform size"
-        assert sizes.pop() < Pt(14), "long label must shrink below the default"
+        (size,) = sizes
+        assert size < Pt(14), "long label must shrink below the default"
 
     def test_short_labels_keep_requested_size(self, blank_slide):
         elem = {

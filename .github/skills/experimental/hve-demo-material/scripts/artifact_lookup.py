@@ -193,7 +193,7 @@ def recover_site(
     """Download the published bundle into ``target`` and describe the result.
 
     Returns ``{"status": "none"}`` when the site publishes no demo material.
-    Raises ``LookupError_`` when the published index is invalid or a file it
+    Raises ``ArtifactLookupError`` when the published index is invalid or a file it
     lists cannot be downloaded, so a caller never stages a partial bundle.
     """
     if not site_url.startswith("https://"):

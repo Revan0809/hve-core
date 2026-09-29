@@ -58,6 +58,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: eval-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   eval-validation:
     name: Eval Validation
@@ -334,7 +338,7 @@ jobs:
     name: Agent Eval Plan
     runs-on: ubuntu-latest
     needs: [eval-validation, content-moderation]
-    if: needs.eval-validation.outputs.eval-relevant == 'true' && github.event.pull_request.head.repo.fork == false
+    if: needs.eval-validation.outputs.eval-relevant == 'true' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     outputs:
@@ -368,10 +372,10 @@ jobs:
         id: plan
         shell: pwsh
         env:
-          ORDINARY_SHARD_COUNT: ${{ inputs.ordinary-shard-count }}
-          INSTRUCTION_SHARD_COUNT: ${{ inputs.instruction-shard-count }}
-          SKILL_SHARD_COUNT: ${{ inputs.skill-shard-count }}
-          BASELINE_MAX_PARALLEL: ${{ inputs.baseline-max-parallel }}
+          ORDINARY_SHARD_COUNT: ${{ inputs.ordinary-shard-count || 4 }}
+          INSTRUCTION_SHARD_COUNT: ${{ inputs.instruction-shard-count || 2 }}
+          SKILL_SHARD_COUNT: ${{ inputs.skill-shard-count || 2 }}
+          BASELINE_MAX_PARALLEL: ${{ inputs.baseline-max-parallel || 2 }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token }}
         run: |
           if ($env:ORDINARY_SHARD_COUNT -notin @('1', '4')) {
@@ -428,7 +432,8 @@ jobs:
     if: >-
       needs.eval-validation.outputs.eval-relevant == 'true' &&
       needs.agent-plan.outputs.execution-enabled == 'true' &&
-      github.event.pull_request.head.repo.fork == false
+      ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
+      github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     strategy:
@@ -555,12 +560,13 @@ jobs:
       needs.eval-validation.outputs.eval-relevant == 'true' &&
       needs.agent-plan.outputs.execution-enabled == 'true' &&
       needs.agent-plan.outputs.baseline-required == 'true' &&
-      github.event.pull_request.head.repo.fork == false
+      ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
+      github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.baseline-max-parallel }}
+      max-parallel: ${{ inputs.baseline-max-parallel || 2 }}
       matrix:
         include:
           - model: gpt-6-luna
@@ -674,7 +680,8 @@ jobs:
       always() && !cancelled() &&
       needs.eval-validation.outputs.eval-relevant == 'true' &&
       needs.agent-plan.outputs.execution-enabled == 'true' &&
-      github.event.pull_request.head.repo.fork == false
+      ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
+      github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     steps:
@@ -760,7 +767,8 @@ jobs:
       always() && !cancelled() &&
       needs.eval-validation.outputs.eval-relevant == 'true' &&
       needs.agent-plan.outputs.execution-enabled == 'true' &&
-      github.event.pull_request.head.repo.fork == false
+      ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
+      github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
     steps:
@@ -884,20 +892,24 @@ jobs:
                 const failed = Number(a.assertionsFailed || 0);
                 let blocking = Number(a.authoritativeFailed);
                 let advisory = Number(a.advisoryFailed);
+                let tolerated = Number(a.toleratedFailed);
                 if (!Number.isFinite(blocking) || !Number.isFinite(advisory)) {
                   if (a.status === 'advisory-fail') { blocking = 0; advisory = failed; }
                   else if (a.status === 'pass' || a.status === 'skipped') { blocking = 0; advisory = 0; }
                   else { blocking = failed; advisory = 0; }
                 }
-                return { blocking, advisory };
+                if (!Number.isFinite(tolerated)) { tolerated = Math.max(0, failed - blocking - advisory); }
+                return { blocking, advisory, tolerated };
               };
 
               let blockingTotal = 0;
               let advisoryTotal = 0;
+              let toleratedTotal = 0;
               for (const a of artifacts) {
-                const { blocking, advisory } = splitFailures(a);
+                const { blocking, advisory, tolerated } = splitFailures(a);
                 blockingTotal += blocking;
                 advisoryTotal += advisory;
+                toleratedTotal += tolerated;
               }
 
               // Only `failedSpecs` gates the PR. When nothing blocks merge but advisory
@@ -923,17 +935,18 @@ jobs:
                 `- Assertions passed: ${totals.assertionsPassed}`,
                 `- Assertions failed (blocking): ${blockingTotal}`,
                 `- Assertions failed (advisory): ${advisoryTotal}`,
+                `- Trial dips tolerated by per-stimulus aggregate: ${toleratedTotal}`,
                 `- Failed specs (merge-blocking): ${totals.failedSpecs}`,
                 '',
               ];
 
               if (artifacts.length > 0) {
-                lines.push('| Artifact | Kind | Status | Specs | Passed | Failed (blocking) | Failed (advisory) |');
-                lines.push('|----------|------|--------|-------|--------|-------------------|-------------------|');
+                lines.push('| Artifact | Kind | Status | Specs | Passed | Failed (blocking) | Failed (advisory) | Trial dips (tolerated) |');
+                lines.push('|----------|------|--------|-------|--------|-------------------|-------------------|------------------------|');
                 for (const a of artifacts) {
                   const icon = a.status === 'pass' ? '✅' : a.status === 'skipped' ? '⏭️' : a.status === 'advisory-fail' ? '⚠️' : '❌';
-                  const { blocking, advisory } = splitFailures(a);
-                  lines.push(`| \`${a.artifactId}\` | ${a.kind} | ${icon} ${a.status} | ${a.specCount || 0} | ${a.assertionsPassed} | ${blocking} | ${advisory} |`);
+                  const { blocking, advisory, tolerated } = splitFailures(a);
+                  lines.push(`| \`${a.artifactId}\` | ${a.kind} | ${icon} ${a.status} | ${a.specCount || 0} | ${a.assertionsPassed} | ${blocking} | ${advisory} | ${tolerated} |`);
                 }
                 lines.push('');
                 lines.push('> **Legend** — ✅ clean · ⚠️ advisory failures only (non-blocking) · ⏭️ skipped · ❌ merge-blocking failure');

@@ -1,14 +1,14 @@
 #!/usr/bin/env pwsh
 # Copyright (c) 2026 Microsoft Corporation. All rights reserved.
 # SPDX-License-Identifier: MIT
-#Requires -Version 7.0
+#Requires -Version 7.4
 
 <#
 .SYNOPSIS
     Emits a JSON manifest of synthetic artifacts derived from changed eval specs.
 
 .DESCRIPTION
-    Diffs `evals/` between two git refs and resolves every added or modified
+    Reads the canonical immutable eval change set and resolves every added or modified
     stimulus to a synthetic artifact descriptor via the `ChangedSpecStimulus`
     module. The output mirrors the shape of `Get-ChangedAIArtifact.ps1`
     (`@{ baseRef; headRef; artifacts = @(...) }`) so `Invoke-VallyEvals.ps1` can
@@ -17,13 +17,10 @@
 
     Exit codes:
       0 = manifest written successfully (manifest may be empty).
-      2 = git invocation failed.
+      2 = input processing, Git content reading, or manifest generation failed.
 
-.PARAMETER BaseRef
-    Base git ref for the diff. Defaults to `origin/main`.
-
-.PARAMETER HeadRef
-    Head git ref for the diff. Defaults to `HEAD`.
+.PARAMETER ChangeSetPath
+    Required canonical manifest written by Get-EvalChangeSet.ps1, relative to RepoRoot.
 
 .PARAMETER EvalRoot
     Eval spec root relative to the repository root. Defaults to `evals`.
@@ -34,21 +31,15 @@
 .PARAMETER RepoRoot
     Repository root. Defaults to the git toplevel.
 
-.PARAMETER AcceptanceProfilePath
-    Optional checked-in profile whose required owners supplement delta selection.
-
 .EXAMPLE
-    pwsh -File scripts/evals/Get-ChangedSpecStimulus.ps1
-    Diff origin/main...HEAD and emit logs/changed-spec-stimuli.json.
+    pwsh -File scripts/evals/Get-ChangedSpecStimulus.ps1 -ChangeSetPath logs/eval-change-set.json
+    Resolve changed stimuli at the canonical comparison commits.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$BaseRef = 'origin/main',
-
-    [Parameter(Mandatory = $false)]
-    [string]$HeadRef = 'HEAD',
+    [string]$ChangeSetPath = 'logs/eval-change-set.json',
 
     [Parameter(Mandatory = $false)]
     [string]$EvalRoot = 'evals',
@@ -57,16 +48,14 @@ param(
     [string]$OutFile,
 
     [Parameter(Mandatory = $false)]
-    [string]$RepoRoot,
-
-    [Parameter(Mandatory = $false)]
-    [string]$AcceptanceProfilePath
+    [string]$RepoRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'Modules/ChangedSpecStimulus.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Modules/EvalChangeSet.psm1') -Force
 
 function Resolve-RepoRoot {
     [CmdletBinding()]
@@ -100,37 +89,28 @@ elseif (-not [System.IO.Path]::IsPathRooted($OutFile)) {
 }
 
 try {
-    $artifacts = Get-ChangedSpecStimulusArtifact -BaseRef $BaseRef -HeadRef $HeadRef -RepoRoot $resolvedRepoRoot -EvalRoot $EvalRoot
-    $acceptance = $null
-    if (-not [string]::IsNullOrWhiteSpace($AcceptanceProfilePath)) {
-        Import-Module (Join-Path $PSScriptRoot 'Modules/VallyRunner.psm1') -Force
-        $profilePath = Join-Path $resolvedRepoRoot $AcceptanceProfilePath
-        $inventory = Get-VallyAcceptanceInventory -ProfilePath $profilePath -EvalRoot (Join-Path $resolvedRepoRoot $EvalRoot)
-        $artifacts = Merge-VallyAcceptanceArtifact -Artifact @($artifacts) -Inventory $inventory
-        $checkout = (& git -C $resolvedRepoRoot rev-parse HEAD).Trim()
-        if ($LASTEXITCODE -ne 0 -or $checkout -cnotmatch '^[a-f0-9]{40}$') { throw 'Acceptance checkout identity unavailable.' }
-        $acceptance = [ordered]@{ inventory = $inventory; checkout = $checkout; inputDigest = Get-VallyInputDigest -RepoRoot $resolvedRepoRoot }
-    }
+    if (-not [System.IO.Path]::IsPathRooted($ChangeSetPath)) { $ChangeSetPath = Join-Path $resolvedRepoRoot $ChangeSetPath }
+    $changeSet = Read-EvalChangeSet -Path $ChangeSetPath
+    $artifacts = Get-ChangedSpecStimulusArtifact -ChangeSetPath $ChangeSetPath -RepoRoot $resolvedRepoRoot -EvalRoot $EvalRoot
 }
 catch {
-    Write-Error $_.Exception.Message
+    Write-Error -ErrorAction Continue $_.Exception.Message
     exit 2
 }
 
 $manifest = @{
-    baseRef   = $BaseRef
-    headRef   = $HeadRef
+    baseRef   = $changeSet.baseRef
+    headRef   = $changeSet.headRef
     artifacts = @($artifacts)
 }
-if ($null -ne $acceptance) { $manifest.acceptance = $acceptance }
 
 $outDir = Split-Path -Path $OutFile -Parent
 if (-not [string]::IsNullOrWhiteSpace($outDir) -and -not (Test-Path -LiteralPath $outDir -PathType Container)) {
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 }
 
-$manifest | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $OutFile -Encoding UTF8
+$manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutFile -Encoding UTF8
 
-Write-Host "Detected $($manifest.artifacts.Count) changed eval-spec stimulus artifact(s) between $BaseRef and $HeadRef."
+Write-Host "Detected $($manifest.artifacts.Count) changed eval-spec stimulus artifact(s) between $($manifest.baseRef) and $($manifest.headRef)."
 Write-Host "Manifest: $OutFile"
 exit 0

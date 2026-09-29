@@ -3,21 +3,8 @@
 name: Eval Validation
 
 on:
-  workflow_dispatch:
-    inputs:
-      acceptance-profile:
-        description: "Explicit acceptance profile; executes configured trials and judge controls"
-        required: true
-        type: choice
-        options:
-          - pr-2951
   workflow_call:
     inputs:
-      acceptance-profile:
-        description: "Optional explicit acceptance profile (pr-2951); empty preserves PR delta behavior"
-        required: false
-        type: string
-        default: ""
       soft-fail:
         description: "Whether to continue on eval validation failures"
         required: false
@@ -28,8 +15,17 @@ on:
         required: false
         type: boolean
         default: true
-      base-branch:
-        description: "Base branch or SHA for change detection (defaults to origin/main)"
+      base-ref:
+        description: "Explicit base ref, used only when merge-ref is empty (manual runs)"
+        required: false
+        type: string
+        default: "origin/main"
+      head-ref:
+        description: "PR event head SHA, or workflow SHA for manual runs"
+        required: true
+        type: string
+      merge-ref:
+        description: "PR test-merge commit SHA; its first parent is the base and its second parent must equal head-ref"
         required: false
         type: string
         default: ""
@@ -57,16 +53,13 @@ on:
       copilot-github-token:
         description: "GitHub credential exported as COPILOT_GITHUB_TOKEN for the Copilot CLI used by vally eval"
         required: false
-      COPILOT_GITHUB_TOKEN:
-        description: "Repository credential name used by explicit workflow_dispatch acceptance runs"
-        required: false
 
 # Minimal permissions
 permissions:
   contents: read
 
 concurrency:
-  group: eval-validation-${{ github.event.pull_request.number || github.ref }}-${{ inputs.acceptance-profile || 'delta' }}
+  group: eval-validation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -101,78 +94,42 @@ jobs:
       - name: Create logs directory
         run: mkdir -p logs
 
+      - name: Generate immutable eval change set
+        shell: pwsh
+        env:
+          INPUT_BASE_REF: ${{ inputs.base-ref }}
+          INPUT_HEAD_REF: ${{ inputs.head-ref }}
+          INPUT_MERGE_REF: ${{ inputs.merge-ref }}
+        run: |
+          if ($env:INPUT_MERGE_REF) {
+            pwsh -NoProfile -File scripts/evals/Get-EvalChangeSet.ps1 `
+              -MergeRef $env:INPUT_MERGE_REF -HeadRef $env:INPUT_HEAD_REF -OutFile logs/eval-change-set.json
+          } else {
+            pwsh -NoProfile -File scripts/evals/Get-EvalChangeSet.ps1 `
+              -BaseRef $env:INPUT_BASE_REF -HeadRef $env:INPUT_HEAD_REF -OutFile logs/eval-change-set.json
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Eval change-set generation failed; selection is unavailable.' }
+
+      - name: Upload immutable eval change set
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eval-change-set
+          path: logs/eval-change-set.json
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Detect eval-relevant changes
         id: detect
         shell: pwsh
         env:
           INPUT_CHANGED_FILES_ONLY: ${{ inputs.changed-files-only }}
-          INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
-          ACCEPTANCE_PROFILE: ${{ inputs.acceptance-profile }}
         run: |
-          if ($env:ACCEPTANCE_PROFILE -notin @('', 'pr-2951')) {
-            throw 'Unsupported acceptance profile.'
-          }
-          if (-not [string]::IsNullOrWhiteSpace($env:ACCEPTANCE_PROFILE)) {
-            'EVAL_RELEVANT=true' >> $env:GITHUB_ENV
-            'eval-relevant=true' >> $env:GITHUB_OUTPUT
-            exit 0
-          }
+          Import-Module ./scripts/evals/Modules/EvalChangeSet.psm1 -Force
+          $changeSet = Read-EvalChangeSet -Path logs/eval-change-set.json
+          $relevant = Test-EvalChangeSetRelevance -ChangeSet $changeSet -RepoRoot $PWD.Path
           if ($env:INPUT_CHANGED_FILES_ONLY -ne 'true') {
-            'EVAL_RELEVANT=true' >> $env:GITHUB_ENV
-            'eval-relevant=true' >> $env:GITHUB_OUTPUT
+            $relevant = $true
             Write-Output 'changed-files-only is false; running full eval suite.'
-            exit 0
-          }
-
-          $baseBranch = $env:INPUT_BASE_BRANCH
-          if ([string]::IsNullOrEmpty($baseBranch)) {
-            $baseBranch = 'origin/main'
-          }
-
-          $changed = & git diff --name-only "$baseBranch...HEAD"
-          if ($LASTEXITCODE -ne 0 -or $null -eq $changed) {
-            Write-Output "Could not compute diff against '$baseBranch'; running full eval suite."
-            'EVAL_RELEVANT=true' >> $env:GITHUB_ENV
-            'eval-relevant=true' >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-
-          $patterns = @(
-            '^evals/',
-            '^scripts/evals/',
-            '^\.github/agents/',
-            '^\.github/prompts/',
-            '^\.github/instructions/',
-            '^\.github/skills/'
-          )
-
-          # package.json and package-lock.json change often for reasons unrelated to
-          # evals. Treat them as eval-relevant only when the change touches the vally
-          # CLI dependency or a ci:eval:* npm script, detected from the diff content.
-          $contentScopedFiles = @('package.json', 'package-lock.json')
-          $evalContentPattern = 'vally|"ci:eval:'
-
-          $relevant = $false
-          foreach ($file in $changed) {
-            foreach ($pattern in $patterns) {
-              if ($file -match $pattern) {
-                $relevant = $true
-                Write-Output "Eval-relevant change: $file"
-                break
-              }
-            }
-            if ($relevant) { break }
-
-            if ($contentScopedFiles -contains $file) {
-              $diff = & git diff "$baseBranch...HEAD" -- $file
-              $changedLines = $diff | Where-Object { $_ -match '^[+-]' -and $_ -notmatch '^(\+\+\+|---)' }
-              if ($changedLines -match $evalContentPattern) {
-                $relevant = $true
-                Write-Output "Eval-relevant change (vally tooling): $file"
-                break
-              }
-              Write-Output "Non-eval change in ${file}; not triggering eval suite."
-            }
           }
 
           if ($relevant) {
@@ -233,7 +190,12 @@ jobs:
       - name: Add job summary
         if: always()
         run: |
-          if [ "${{ env.EVAL_RELEVANT }}" != "true" ]; then
+          if [ "${{ env.EVAL_RELEVANT }}" != "true" ] && [ "${{ env.EVAL_RELEVANT }}" != "false" ]; then
+            {
+              echo "## Eval Validation Results"
+              echo "Change selection failed or did not complete. Review the failing step."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ env.EVAL_RELEVANT }}" == "false" ]; then
             {
               echo "## Eval Validation Results"
               echo "⏭️ **Status**: Skipped"
@@ -307,16 +269,19 @@ jobs:
       - name: Create logs directory
         run: mkdir -p logs
 
+      - name: Download immutable eval change set
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eval-change-set
+          path: logs
+
       - name: Generate changed-artifact manifest
         id: artifact-manifest
         shell: pwsh
-        env:
-          INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
         run: |
-          $base = $env:INPUT_BASE_BRANCH
-          if ([string]::IsNullOrWhiteSpace($base)) { $base = 'origin/main' }
           pwsh -NoProfile -File scripts/evals/Get-ChangedAIArtifact.ps1 `
-            -BaseRef $base -HeadRef HEAD -OutFile logs/changed-ai-artifacts.json
+            -ChangeSetPath logs/eval-change-set.json -OutFile logs/changed-ai-artifacts.json
+          if ($LASTEXITCODE -ne 0) { throw 'Changed-artifact selection failed.' }
           $manifest = Get-Content -LiteralPath logs/changed-ai-artifacts.json -Raw | ConvertFrom-Json
           $affectedAgents = if ($null -ne $manifest.affectedAgents) { @($manifest.affectedAgents) } else { @() }
           $required = $affectedAgents -contains 'rpi-agent'
@@ -338,6 +303,7 @@ jobs:
         with:
           name: content-moderation-results
           path: |
+            logs/eval-change-set.json
             logs/changed-ai-artifacts.json
             logs/moderation-artifacts.json
           retention-days: 30
@@ -397,17 +363,9 @@ jobs:
 
       - name: Generate changed-spec stimulus manifest
         shell: pwsh
-        env:
-          INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
-          ACCEPTANCE_PROFILE: ${{ inputs.acceptance-profile }}
         run: |
-          $base = $env:INPUT_BASE_BRANCH
-          if ([string]::IsNullOrWhiteSpace($base)) { $base = 'origin/main' }
-          $arguments = @('-BaseRef', $base, '-HeadRef', 'HEAD', '-OutFile', 'logs/changed-spec-stimuli.json')
-          if ($env:ACCEPTANCE_PROFILE -eq 'pr-2951') {
-            $arguments += @('-AcceptanceProfilePath', 'evals/acceptance/pr-2951.json')
-          }
-          pwsh -NoProfile -File scripts/evals/Get-ChangedSpecStimulus.ps1 @arguments
+          pwsh -NoProfile -File scripts/evals/Get-ChangedSpecStimulus.ps1 `
+            -ChangeSetPath logs/eval-change-set.json -OutFile logs/changed-spec-stimuli.json
           if ($LASTEXITCODE -ne 0) { throw 'Changed-spec selection failed.' }
 
       - name: Build canonical plan and matrix
@@ -418,8 +376,7 @@ jobs:
           INSTRUCTION_SHARD_COUNT: ${{ inputs.instruction-shard-count || 2 }}
           SKILL_SHARD_COUNT: ${{ inputs.skill-shard-count || 2 }}
           BASELINE_MAX_PARALLEL: ${{ inputs.baseline-max-parallel || 2 }}
-          COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token || secrets.COPILOT_GITHUB_TOKEN }}
-          ACCEPTANCE_PROFILE: ${{ inputs.acceptance-profile }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token }}
         run: |
           if ($env:ORDINARY_SHARD_COUNT -notin @('1', '4')) {
             throw "ordinary-shard-count must be 1 or 4; received '$env:ORDINARY_SHARD_COUNT'."
@@ -444,18 +401,12 @@ jobs:
           $plan = Get-Content -LiteralPath logs/agent-eval-plan.json -Raw | ConvertFrom-Json -Depth 50
           $include = [System.Collections.Generic.List[object]]::new()
           $include.Add([ordered]@{ kind = 'prompt'; producer = 'prompt'; shard = '' })
-          if ($env:ACCEPTANCE_PROFILE -eq 'pr-2951') {
-            $include.Add([ordered]@{ kind = 'calibration'; producer = 'calibration'; shard = '' })
-          }
           # Matrix order determines job creation order, so emit the heaviest shards before the concurrency cap fills.
           $orderedShards = @($plan.ordinaryShards | Sort-Object @{ Expression = { [int]$_.expectedTrialWeight }; Descending = $true }, @{ Expression = { [string]$_.id }; Ascending = $true })
           foreach ($shard in $orderedShards) {
             $include.Add([ordered]@{ kind = [string]$shard.kind; producer = [string]$shard.id; shard = [string]$shard.id })
           }
           $matrix = [ordered]@{ include = @($include) } | ConvertTo-Json -Depth 5 -Compress
-          if ($env:ACCEPTANCE_PROFILE -eq 'pr-2951' -and [string]::IsNullOrWhiteSpace($env:COPILOT_GITHUB_TOKEN)) {
-            throw 'Explicit acceptance requires the configured Copilot credential; execution cannot be skipped.'
-          }
           "execution-matrix=$matrix" >> $env:GITHUB_OUTPUT
           "baseline-required=$(([bool]$plan.baseline.required).ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "execution-enabled=$((-not [string]::IsNullOrWhiteSpace($env:COPILOT_GITHUB_TOKEN)).ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
@@ -490,7 +441,7 @@ jobs:
       max-parallel: 6
       matrix: ${{ fromJSON(needs.agent-plan.outputs.execution-matrix) }}
     env:
-      COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token || secrets.COPILOT_GITHUB_TOKEN }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -556,7 +507,7 @@ jobs:
 
       - name: Execute evals
         id: execute
-        if: env.EVAL_EXECUTE == 'true' && matrix.kind != 'calibration'
+        if: env.EVAL_EXECUTE == 'true'
         shell: pwsh
         env:
           MATRIX_KIND: ${{ matrix.kind }}
@@ -577,13 +528,6 @@ jobs:
           }
         continue-on-error: true
 
-      - name: Calibrate acceptance judges
-        if: env.EVAL_EXECUTE == 'true' && matrix.kind == 'calibration'
-        shell: pwsh
-        run: |
-          npm run ci:eval:calibrate -- --profile evals/acceptance/pr-2951.json --manifest logs/changed-spec-stimuli.json --output logs/eval-calibration.json
-          if ($LASTEXITCODE -ne 0) { throw 'Acceptance calibration did not match all expected verdicts.' }
-
       - name: Upload eval execution results
         if: always() && env.EVAL_EXECUTE == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -598,7 +542,6 @@ jobs:
             logs/stimulus-presence.json
             logs/eval-summary.json
             logs/eval-results-*.json
-            logs/eval-calibration.json
           retention-days: 30
           if-no-files-found: error
 
@@ -631,7 +574,7 @@ jobs:
           - model: claude-sonnet-5
             key: claude
     env:
-      COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token || secrets.COPILOT_GITHUB_TOKEN }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.copilot-github-token }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -859,22 +802,13 @@ jobs:
         shell: pwsh
         env:
           SOFT_FAIL: ${{ inputs.soft-fail }}
-          ACCEPTANCE_PROFILE: ${{ inputs.acceptance-profile }}
         run: |
           New-Item -ItemType Directory -Path logs -Force | Out-Null
-          $arguments = @(
-            '-PlanPath', 'plan-input/agent-eval-plan.json',
-            '-SummaryDirectory', 'producer-results',
-            '-OutputPath', 'logs/eval-summary.json',
-            '-StatusPath', 'logs/eval-fan-in-status.json'
-          )
-          if ($env:ACCEPTANCE_PROFILE -eq 'pr-2951') {
-            $arguments += @(
-              '-AcceptanceManifestPath', 'plan-input/changed-spec-stimuli.json',
-              '-CalibrationPath', 'producer-results/eval-execution-results-calibration/eval-calibration.json'
-            )
-          }
-          pwsh -NoProfile -File scripts/evals/Merge-EvalExecution.ps1 @arguments
+          pwsh -NoProfile -File scripts/evals/Merge-EvalExecution.ps1 `
+            -PlanPath plan-input/agent-eval-plan.json `
+            -SummaryDirectory producer-results `
+            -OutputPath logs/eval-summary.json `
+            -StatusPath logs/eval-fan-in-status.json
           $mergeExitCode = $LASTEXITCODE
           if ($mergeExitCode -ne 0) {
             $status = if (Test-Path -LiteralPath logs/eval-fan-in-status.json) { Get-Content -LiteralPath logs/eval-fan-in-status.json -Raw | ConvertFrom-Json } else { $null }

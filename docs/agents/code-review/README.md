@@ -199,17 +199,26 @@ In non-interactive (workflow) mode, Steps 2, 3, and 5 are skipped and the board 
 
 Depth controls how deeply each selected perspective verifies the confirmed scope. It does not add or remove perspectives.
 
-Before you select a tier, the agent presents an advisory recommendation derived from the [Change-Risk Evidence Checklist](https://github.com/microsoft/hve-core/blob/main/.github/skills/coding-standards/code-review/references/change-risk-model.md).
-For six categories (change scope, path criticality, history, test presence, coverage, and rollback), the checklist records one of three evidence states: `observed` (directly supported by the diff, repository, test results, coverage report, or history), `unavailable` (the required source is absent, inaccessible, or too shallow), or `qualitative` (interpretation-dependent evidence from available context rather than a reproducible measurement).
-The checklist is advisory only: in interactive reviews you confirm the final depth tier, and any difference from the recommendation is recorded with your rationale. In non-interactive (workflow) mode, the selected depth is recorded as automation-derived.
+Before you select a tier, the agent presents an advisory recommendation derived from the [Change-Risk Evidence Checklist source on GitHub](https://github.com/microsoft/hve-core/blob/main/.github/skills/coding-standards/code-review/references/change-risk-model.md).
+The checklist covers six categories: change scope, path criticality, history, test presence, coverage, and rollback.
 
-| Tier | Depth           | When to use                                                                                                                                            |
-|------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1    | `basic`         | Recommended only when evidence consistently supports a narrow, reversible, well-tested change with no critical-path concern                            |
-| 2    | `standard`      | Default; recommended for most reviews, including whenever evidence is incomplete, unavailable in a material category, or inconclusive                  |
-| 3    | `comprehensive` | Recommended when evidence identifies critical paths, broad behavioral spread, weak detection for important logic, hard rollback, or material ambiguity |
+For each category, the checklist records one of three evidence states:
 
-See [Depth Tiers](https://github.com/microsoft/hve-core/blob/main/.github/skills/coding-standards/code-review/references/depth-tiers.md) for the full per-tier verification focus.
+* `observed`: directly supported by the diff, repository, test results, coverage report, or version history.
+* `unavailable`: the required source is absent, inaccessible, or too shallow to support a claim.
+* `qualitative`: interpretation-dependent evidence from available context rather than a reproducible measurement.
+
+The checklist is advisory only.
+In interactive reviews, you confirm the final depth tier, and any difference from the recommendation is recorded with your rationale.
+In non-interactive (workflow) mode, the review records the selected depth as `automation-derived`, meaning automation chose it rather than a person.
+
+| Tier | Depth           | When to use                                                                                                                                                                                                                             |
+|------|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1    | `basic`         | Recommended only when evidence consistently supports a narrow, reversible, well-tested change with no critical-path concern                                                                                                             |
+| 2    | `standard`      | Default; recommended for most reviews, including whenever evidence is incomplete, unavailable in a material category, or inconclusive                                                                                                   |
+| 3    | `comprehensive` | Recommended when observed or qualitative evidence identifies critical paths, broad behavioral spread, weak detection for important logic, hard rollback, or material ambiguity; unavailable history or coverage alone does not escalate |
+
+See the [Depth Tiers skill reference on GitHub](https://github.com/microsoft/hve-core/blob/main/.github/skills/coding-standards/code-review/references/depth-tiers.md) for the full per-tier verification focus.
 
 ## Usage
 

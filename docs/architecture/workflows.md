@@ -3,7 +3,7 @@ title: Build Workflows
 description: GitHub Actions CI/CD pipeline architecture for validation, security, and release automation
 sidebar_position: 3
 author: WilliamBerryiii
-ms.date: 2026-10-04
+ms.date: 2026-10-07
 ms.topic: overview
 keywords:
   - github actions
@@ -350,14 +350,22 @@ through exact tags.
 
 ### Weekly Security Maintenance
 
-The `weekly-security-maintenance.yml` workflow runs every Sunday at 2AM UTC, providing scheduled security posture review.
+The `weekly-security-maintenance.yml` workflow runs every Sunday at 2AM UTC on the default branch, providing scheduled security posture review. Manual dispatch uses the selected ref.
 
-| Job              | Purpose                                       |
-|------------------|-----------------------------------------------|
-| validate-pinning | Verify dependency pinning compliance          |
-| check-staleness  | Detect outdated SHA references                |
-| codeql-analysis  | Full CodeQL security scan with threshold gate |
-| summary          | Aggregate security status report              |
+| Job                     | Purpose                                       |
+|-------------------------|-----------------------------------------------|
+| validate-pinning        | Verify dependency pinning compliance          |
+| check-staleness         | Detect outdated SHA references                |
+| codeql-analysis         | Full CodeQL security scan with threshold gate |
+| dangerous-workflow-scan | Advisory homegrown and Poutine scans          |
+| summary                 | Aggregate execution and dependency status     |
+
+The weekly caller reuses `dangerous-workflow-scan.yml` with both scanners advisory,
+SARIF and artifact uploads enabled, and only read-content/SARIF-write permissions.
+PR validation retains the blocking homegrown gate. A successful advisory job does not
+prove zero findings or successful analysis; inspect its logs and retained SARIF.
+See [Dangerous Workflow Detection](../security/dangerous-workflow-detection) for baseline
+dispositions and acknowledgment removal conditions.
 
 ### Security Validation Tools
 
@@ -474,7 +482,6 @@ Workflows invoke validation through npm scripts defined in `package.json`:
 | `ci:eval:moderate:artifacts`    | `Invoke-ArtifactModeration.ps1`                                                                            | CI-owned moderation lane                    |
 | `ci:eval:moderate:test`         | Runs `Invoke-ContentModeration.Tests.ps1`                                                                  | CI-owned test lane                          |
 | `ci:eval:dashboard`             | `New-EquivalenceDashboard.ps1`                                                                             | CI-owned noninteractive report lane         |
-| `ci:eval:behavior-prompts`      | `vally eval --eval-spec evals/behavior-conformance/prompts.eval.yaml`                                      | CI-owned model-backed lane                  |
 | `ci:eval:behavior-instructions` | `vally eval --eval-spec evals/behavior-conformance/instructions.eval.yaml`                                 | CI-owned model-backed lane                  |
 | `ci:eval:behavior-skills`       | `vally eval --eval-spec evals/behavior-conformance/skill-behavior.eval.yaml`                               | CI-owned model-backed lane                  |
 | `ci:eval:agent`                 | `Invoke-AgentMatrix.ps1` (agent behavior matrix)                                                           | CI-owned model-backed lane                  |
